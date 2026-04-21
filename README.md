@@ -22,26 +22,59 @@ The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8
 
 ## Quickstart
 
-Three commands on a fresh clone:
+On a fresh clone, run each block in order:
+
+**1. Bring up Postgres, Keycloak (with realm pre-imported), and Jaeger:**
 
 ```bash
-# 1. bring up Postgres, Keycloak (with realm pre-imported), Jaeger
 docker compose up -d
+```
 
-# 2. run the app (generates an ephemeral session key on first boot)
+**2. Run the app (generates an ephemeral session key on first boot):**
+
+```bash
 mvn spring-boot:run
+```
 
-# 3. mint a token as the "oncall" persona, then call a tool
+**3. Mint a token as the `oncall` persona:**
+
+```bash
 TOKEN=$(curl -sS -X POST http://localhost:8180/realms/mocapi-demo/protocol/openid-connect/token \
   -d 'grant_type=client_credentials&client_id=meridian-oncall&client_secret=meridian-oncall-secret' \
   | jq -r .access_token)
+```
 
-curl -sS -X POST http://localhost:8080/mcp \
+**4. Initialize an MCP session — the server mints the id and returns it in the `Mcp-Session-Id` response header:**
+
+```bash
+SESSION=$(curl -sS -D - -o /dev/null -X POST http://localhost:8080/mcp \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -H "Mcp-Session-Id: $(uuidgen)" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"blast-radius","arguments":{"name":"payment-processor"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
+  | awk 'tolower($1) == "mcp-session-id:" { print $2 }' | tr -d '\r')
+```
+
+**5. Complete the handshake (required by the MCP spec):**
+
+```bash
+curl -sS -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Mcp-Session-Id: $SESSION" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+```
+
+**6. Call a tool:**
+
+```bash
+curl -sS -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Mcp-Session-Id: $SESSION" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"blast-radius","arguments":{"name":"payment-processor"}}}'
 ```
 
 Traces land in Jaeger at <http://localhost:16686>. Keycloak's admin console (if you want to poke around the realm) is at <http://localhost:8180>, `admin` / `admin`.
