@@ -75,9 +75,25 @@ public class EncryptionBootstrap implements EnvironmentPostProcessor {
             "Ephemeral encryption key(s) generated for "
                 + generated.keySet()
                 + " — sessions and SSE resume tokens will not survive a restart!!!"));
-    app.addListeners(
-        (ApplicationListener<ApplicationPreparedEvent>)
-            _ -> log.replayTo(EncryptionBootstrap.class));
+    app.addListeners(new ReplayOnApplicationPrepared());
+  }
+
+  /**
+   * Named class — not a lambda — so Spring can resolve the {@code ApplicationPreparedEvent} type
+   * argument at registration and pre-filter invocations. A lambda here erases to {@code
+   * ApplicationListener<?>} and would be invoked for every application event; the synthetic bridge
+   * method's cast then throws {@link ClassCastException} on anything that isn't an {@code
+   * ApplicationPreparedEvent}. Spring's multicaster catches and logs it silently — but the
+   * per-event exception-plus-stack-capture cost is measurable under load (~280 CCEs/sec during a
+   * 50-VU benchmark, visible in JFR as a hotspot under Spring Security's {@code
+   * publishAuthenticationSuccess}).
+   */
+  private static final class ReplayOnApplicationPrepared
+      implements ApplicationListener<ApplicationPreparedEvent> {
+    @Override
+    public void onApplicationEvent(ApplicationPreparedEvent event) {
+      log.replayTo(EncryptionBootstrap.class);
+    }
   }
 
   private static void addIfMissing(
