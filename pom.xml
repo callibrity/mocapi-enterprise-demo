@@ -55,7 +55,7 @@
         <!-- SonarCloud configuration -->
         <sonar.organization>callibrity</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectKey>callibrity_mocapi-demo</sonar.projectKey>
+        <sonar.projectKey>callibrity_mocapi-enterprise-demo</sonar.projectKey>
         <!-- Seed data isn't worth testing — the literals are the value. The main class is the
              standard Spring Boot entry point with no logic. -->
         <sonar.coverage.exclusions>
