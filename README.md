@@ -16,7 +16,15 @@ An **enterprise-grade MCP server** built on Spring Boot 4, [Mocapi](https://gith
 - **What's our deprecation debt?** Which legacy services are still being called, and by whom?
 - **If we sunset this team, what are we on the hook for?**
 
-The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8707 resource indicators, scope-gated tool visibility, three-pillar OpenTelemetry, persistent sessions, native-compilable everything — the patterns real MCP deployments need but toy examples skip.
+The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8707 resource indicators, scope-gated tool visibility, three-pillar OpenTelemetry, persistent encrypted sessions, native-compilable everything — the patterns real MCP deployments need but toy examples skip.
+
+**How to use this repo.** For *how Mocapi works* — tool dispatch, schema generation, the streamable HTTP transport, bean validation mechanics, MDC correlation, Observation-to-OTel bridging — read the [Mocapi docs](https://github.com/callibrity/mocapi). This repo picks up where those leave off: it shows the **enterprise wrapper** you build around Mocapi when you're taking MCP from a toy to a deployment.
+
+---
+
+## Seeing it in action
+
+*(Screenshot / transcript of Claude answering a Meridian question via MCP tool calls lands here once the Azure deployment is live. The intended "aha" moment: a natural-language question like "who gets paged if payment-processor goes down?" produces a cascade of `service-dependents` → `blast-radius` → `team-lookup` calls and a clean human-readable answer with teams, Slack channels, and the order-of-impact list.)*
 
 ---
 
@@ -24,19 +32,13 @@ The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8
 
 On a fresh clone, run each block in order:
 
-**1. Bring up Postgres, Keycloak (with realm pre-imported), and Jaeger:**
-
-```bash
-docker compose up -d
-```
-
-**2. Run the app (generates an ephemeral session key on first boot):**
+**1. Run the app.** `spring-boot-docker-compose` starts Postgres, Keycloak (with realm pre-imported), and Jaeger from `compose.yaml` on boot and stops them on shutdown — no separate compose step needed. Ephemeral encryption keys are generated on first boot.
 
 ```bash
 mvn spring-boot:run
 ```
 
-**3. Mint a token as the `oncall` persona:**
+**2. Mint a token as the `oncall` persona:**
 
 ```bash
 TOKEN=$(curl -sS -X POST http://localhost:8180/realms/mocapi-demo/protocol/openid-connect/token \
@@ -44,7 +46,7 @@ TOKEN=$(curl -sS -X POST http://localhost:8180/realms/mocapi-demo/protocol/openi
   | jq -r .access_token)
 ```
 
-**4. Initialize an MCP session — the server mints the id and returns it in the `Mcp-Session-Id` response header:**
+**3. Initialize an MCP session — the server mints the id and returns it in the `Mcp-Session-Id` response header:**
 
 ```bash
 SESSION=$(curl -sS -D - -o /dev/null -X POST http://localhost:8080/mcp \
@@ -55,7 +57,7 @@ SESSION=$(curl -sS -D - -o /dev/null -X POST http://localhost:8080/mcp \
   | awk 'tolower($1) == "mcp-session-id:" { print $2 }' | tr -d '\r')
 ```
 
-**5. Complete the handshake (required by the MCP spec):**
+**4. Complete the handshake (required by the MCP spec):**
 
 ```bash
 curl -sS -X POST http://localhost:8080/mcp \
@@ -66,7 +68,7 @@ curl -sS -X POST http://localhost:8080/mcp \
   -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
 ```
 
-**6. Call a tool:**
+**5. Call a tool:**
 
 ```bash
 curl -sS -X POST http://localhost:8080/mcp \
