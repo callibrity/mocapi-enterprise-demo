@@ -1,6 +1,6 @@
-# Contributing to Cowork Connector Example
+# Contributing to Mocapi Enterprise Demo
 
-Thanks for your interest in this project! It's a reference example of an MCP connector built with Spring Boot 4 and [Mocapi](https://github.com/callibrity/mocapi). We welcome pull requests, issues, and feedback.
+Thanks for your interest in this project! It's an enterprise-grade reference example of an MCP server built with Spring Boot 4 and [Mocapi](https://github.com/callibrity/mocapi). We welcome pull requests, issues, and feedback.
 
 ## How to Contribute
 

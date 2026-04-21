@@ -60,7 +60,7 @@
              standard Spring Boot entry point with no logic. -->
         <sonar.coverage.exclusions>
             **/catalog/seed/**,
-            **/CoworkConnectorApplication.java
+            **/MocapiDemoApplication.java
         </sonar.coverage.exclusions>
         <!-- Service names in the seed graph are schema, not magic values; extracting 36 constants would
              be strictly worse than the current hand-authored fixture. -->
