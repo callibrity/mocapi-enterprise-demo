@@ -3,11 +3,11 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/callibrity/mocapi-enterprise-demo)](https://github.com/callibrity/mocapi-enterprise-demo/pkgs/container/mocapi-enterprise-demo)
 
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-demo&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-demo)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-demo&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-demo)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-demo&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-demo)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-demo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-demo)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-demo&metric=coverage)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-demo)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=coverage)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
 
 An **enterprise-grade MCP server** built on Spring Boot 4, [Mocapi](https://github.com/callibrity/mocapi), and GraalVM native. Exposes a fictitious service catalog ("Meridian") over the Model Context Protocol so an LLM can answer the kinds of questions every enterprise engineering org struggles with:
 

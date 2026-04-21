@@ -345,17 +345,16 @@ class DefaultCatalogServiceTest {
       Team owner,
       LifecycleStage lifecycle,
       Set<String> tags) {
-    Service s =
-        new Service(
-            name,
-            displayName,
-            "desc",
-            domain,
-            owner,
-            lifecycle,
-            "https://repo/" + name,
-            "https://runbook/" + name,
-            tags);
+    Service s = new Service();
+    s.setName(name);
+    s.setDisplayName(displayName);
+    s.setDescription("desc");
+    s.setDomain(domain);
+    s.setOwner(owner);
+    s.setLifecycleStage(lifecycle);
+    s.setRepoUrl("https://repo/" + name);
+    s.setRunbookUrl("https://runbook/" + name);
+    s.setTags(tags);
     services.put(name, s);
   }
 

@@ -17,22 +17,24 @@ package com.callibrity.mocapi.demo.catalog.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ServiceTest {
 
   @Test
-  void nullTagsInitializesEmptySet() {
-    Service s = new Service("a", "A", "d", "dom", null, LifecycleStage.ACTIVE, null, null, null);
+  void setTagsNullYieldsEmptySet() {
+    Service s = new Service();
+    s.setTags(null);
     assertThat(s.getTags()).isNotNull().isEmpty();
   }
 
   @Test
-  void providedTagsAreDefensivelyCopied() {
-    Set<String> original = new java.util.LinkedHashSet<>(Set.of("pii", "soc2"));
-    Service s =
-        new Service("a", "A", "d", "dom", null, LifecycleStage.ACTIVE, null, null, original);
+  void setTagsDefensivelyCopies() {
+    Set<String> original = new LinkedHashSet<>(Set.of("pii", "soc2"));
+    Service s = new Service();
+    s.setTags(original);
     original.add("mutated");
     assertThat(s.getTags()).containsExactlyInAnyOrder("pii", "soc2");
   }

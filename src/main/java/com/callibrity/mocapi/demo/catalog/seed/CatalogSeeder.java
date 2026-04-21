@@ -562,16 +562,7 @@ public class CatalogSeeder implements ApplicationRunner {
     services.put(
         name,
         serviceRepo.save(
-            new Service(
-                name,
-                displayName,
-                description,
-                domain,
-                owner,
-                lifecycle,
-                "https://github.com/meridian/" + name,
-                "https://runbooks.meridian.internal/" + name,
-                tags)));
+            buildService(name, displayName, description, domain, owner, lifecycle, tags)));
   }
 
   private void svcOrphan(
@@ -584,16 +575,28 @@ public class CatalogSeeder implements ApplicationRunner {
     services.put(
         name,
         serviceRepo.save(
-            new Service(
-                name,
-                displayName,
-                description,
-                domain,
-                null,
-                lifecycle,
-                "https://github.com/meridian/" + name,
-                "https://runbooks.meridian.internal/" + name,
-                tags)));
+            buildService(name, displayName, description, domain, null, lifecycle, tags)));
+  }
+
+  private static Service buildService(
+      String name,
+      String displayName,
+      String description,
+      String domain,
+      Team owner,
+      LifecycleStage lifecycle,
+      Set<String> tags) {
+    Service s = new Service();
+    s.setName(name);
+    s.setDisplayName(displayName);
+    s.setDescription(description);
+    s.setDomain(domain);
+    s.setOwner(owner);
+    s.setLifecycleStage(lifecycle);
+    s.setRepoUrl("https://github.com/meridian/" + name);
+    s.setRunbookUrl("https://runbooks.meridian.internal/" + name);
+    s.setTags(tags);
+    return s;
   }
 
   private void dep(String from, String to, DependencyType type) {

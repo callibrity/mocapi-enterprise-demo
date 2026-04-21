@@ -68,24 +68,7 @@ public class Service extends BaseEntity {
   @Column(name = "tag")
   private Set<String> tags = new LinkedHashSet<>();
 
-  public Service(
-      String name,
-      String displayName,
-      String description,
-      String domain,
-      Team owner,
-      LifecycleStage lifecycleStage,
-      String repoUrl,
-      String runbookUrl,
-      Set<String> tags) {
-    this.name = name;
-    this.displayName = displayName;
-    this.description = description;
-    this.domain = domain;
-    this.owner = owner;
-    this.lifecycleStage = lifecycleStage;
-    this.repoUrl = repoUrl;
-    this.runbookUrl = runbookUrl;
+  public void setTags(Set<String> tags) {
     this.tags = tags == null ? new LinkedHashSet<>() : new LinkedHashSet<>(tags);
   }
 }
