@@ -29,7 +29,7 @@
     <groupId>com.callibrity.mocapi</groupId>
     <artifactId>mocapi-demo</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>Mocapi Demo</name>
+    <name>Mocapi Enterprise Demo</name>
     <description>Enterprise-grade MCP server demo built with Spring Boot and Mocapi</description>
     <inceptionYear>2026</inceptionYear>
 

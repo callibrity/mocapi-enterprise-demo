@@ -1,4 +1,4 @@
-# Mocapi Demo
+# Mocapi Enterprise Demo
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/callibrity/mocapi-enterprise-demo)](https://github.com/callibrity/mocapi-enterprise-demo/pkgs/container/mocapi-enterprise-demo)
