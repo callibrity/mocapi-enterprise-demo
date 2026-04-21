@@ -57,10 +57,14 @@
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectKey>callibrity_mocapi-enterprise-demo</sonar.projectKey>
         <!-- Seed data isn't worth testing — the literals are the value. The main class is the
-             standard Spring Boot entry point with no logic. -->
+             standard Spring Boot entry point with no logic. The actuator security config and the
+             OpenTelemetry appender initializer are pure DSL / static-delegate wiring with no
+             branches; a test would re-state what the code says. -->
         <sonar.coverage.exclusions>
             **/catalog/seed/**,
-            **/MocapiDemoApplication.java
+            **/MocapiDemoApplication.java,
+            **/ActuatorSecurityConfiguration.java,
+            **/OpenTelemetryAppenderInitializer.java
         </sonar.coverage.exclusions>
         <!-- Service names in the seed graph are schema, not magic values; extracting 36 constants would
              be strictly worse than the current hand-authored fixture. -->
