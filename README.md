@@ -194,13 +194,137 @@ sequenceDiagram
 
 ---
 
+## Feature tour — Mocapi & Substrate
+
+The "Enterprise pillars" section above is the elevator pitch. This section is the inventory: for every Mocapi or Substrate module on our classpath, what it does, the dependency that brings it in, and the exact place in this repo we exercise it.
+
+### `mocapi-streamable-http-spring-boot-starter` — the `/mcp` endpoint
+
+Auto-configures the MCP *streamable HTTP* transport: a single `/mcp` path that handles `POST` (JSON-RPC requests), `GET` (SSE streams for server-initiated notifications and stream resume), and `DELETE` (session termination). The starter also manages session ids (minted server-side and returned in the `Mcp-Session-Id` response header) and SSE event id framing.
+
+**What it buys you.** The entire MCP wire protocol — initialize handshake, capability negotiation, `tools/list`, `tools/call`, notifications, progress tokens, SSE resume via `Last-Event-Id` — dropped in as auto-config. Nothing in this repo implements transport.
+
+**SSE resume-token encryption.** When Mocapi hands an SSE event id back to the client, the `streamName:eventId` pair is encrypted with `mocapi.session-encryption-master-key` into one opaque token. On reconnect (`GET /mcp` with `Last-Event-Id`), Mocapi decrypts and re-attaches the client to the right stream at the right position. Clients can't forge, peek, or replay across streams. The key is bootstrapped ephemerally in [`EncryptionBootstrap.java`](src/main/java/com/callibrity/mocapi/demo/infra/EncryptionBootstrap.java) for local dev.
+
+### `mocapi-oauth2` — OAuth2 resource server + RFC 8707
+
+Auto-configures the `/mcp` endpoint as a Spring Security OAuth2 resource server with RFC 8707 audience binding. Transitively pulls in `spring-boot-starter-oauth2-resource-server`, so we don't declare that ourselves. Also serves [`/.well-known/oauth-protected-resource`](https://datatracker.ietf.org/doc/html/rfc9728) so MCP clients can discover the authorization server without hard-coding it.
+
+**What it buys you.** Signature validation, issuer validation, audience validation, JWKS caching, and the spec-correct discovery metadata — all from three properties:
+
+```properties
+spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:8180/realms/mocapi-demo
+spring.security.oauth2.resourceserver.jwt.audiences=http://localhost:8080/mcp
+spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:8180/realms/mocapi-demo/protocol/openid-connect/certs
+```
+
+See [`application.properties`](src/main/resources/application.properties). Mocapi 0.10+ auto-derives `mocapi.oauth2.resource` from the configured audience, so there's no second place to update when the audience changes.
+
+### `mocapi-jakarta-validation` — Bean Validation on tool arguments
+
+Plugs Jakarta Bean Validation into tool / prompt / resource handler dispatch. Annotations on `@McpTool` parameters (`@NotBlank`, `@Pattern`, `@Size`, `@Min`, `@Max`, …) are enforced before the handler method runs. Violations in tool handlers surface as `CallToolResult.isError=true` with violation detail in the message content — which is the LLM-self-correction path. Violations in prompt or resource handlers surface as JSON-RPC `-32602` with a structured `{field, message}` list.
+
+**How we use it.** Every tool parameter in [`CatalogTools.java`](src/main/java/com/callibrity/mocapi/demo/catalog/mcp/CatalogTools.java) is constrained:
+
+```java
+@RequiresScope("catalog:read")
+@McpTool(name = "service-lookup", title = "Service Lookup",
+    description = "${tools.catalog.service-lookup.description}")
+public ServiceDto serviceLookup(
+    @Schema(description = "Short name of the service, e.g. 'payment-processor'")
+        @NotBlank @Size(max = 100) @Pattern(regexp = "^[a-z0-9-]+$")
+        String name) {
+  return catalog.lookupService(name);
+}
+```
+
+**What it buys you.** Validation lives on the parameter, next to the type — same place the tool schema sees it — so the LLM gets an accurate JSON Schema *and* malformed calls never reach handler code.
+
+### `mocapi-spring-security-guards` — scope-gated tool visibility
+
+Supplies `@RequiresScope` / `@RequiresRole`. The guards hook into Mocapi's schema advertisement path: a tool annotated with `@RequiresScope("catalog:analyze")` is **hidden from `tools/list`** for callers whose token doesn't carry that scope. It never appears in the LLM's tool schema, so the LLM can't try to use it.
+
+Defense-in-depth: if a client somehow invokes a hidden tool anyway (forged request, stale schema), the same annotation is enforced at invocation and returns JSON-RPC `-32003 Forbidden`.
+
+**How we use it.** Tiered scopes across tool classes, e.g.
+
+```java
+@RequiresScope("catalog:analyze")
+@McpTool(name = "blast-radius", …)
+public BlastRadiusDto blastRadius(@NotBlank String name) { … }
+```
+
+See the scope / persona / tool-count matrix in the "Enterprise pillars" section for the full mapping.
+
+**What it buys you.** The LLM's tool roster stays a function of the caller's identity — not of hand-authored allow/deny lists maintained elsewhere. Adding a new tool means picking a scope; nothing else to wire.
+
+### `mocapi-logging` — MDC correlation on every handler
+
+Wraps every tool / prompt / resource handler invocation in an SLF4J MDC scope that stamps:
+
+| Key | Value |
+|---|---|
+| `mcp.session` | Session id (UUID) |
+| `mcp.handler.kind` | `tool` / `prompt` / `resource` |
+| `mcp.handler.name` | Handler method name (e.g. `blast-radius`) |
+
+**How we use it.** [`logback-spring.xml`](src/main/resources/logback-spring.xml) forwards these MDC keys into the OTel logback appender, which turns them into log-record attributes. The result: every log line the handler emits (including user code) is searchable in the logging backend by session, handler kind, or handler name, correlated with the active trace/span ids.
+
+**What it buys you.** "Which session made the LLM hallucinate?" becomes a log query, not a memory archaeology expedition.
+
+### `mocapi-otel` — Observation wrapper on every handler
+
+Bundles `mocapi-o11y` (which wraps every handler invocation in a Micrometer `Observation`) with Spring Boot 4's `spring-boot-starter-opentelemetry` (which in Spring Boot 4 is the dep that activates `MicrometerTracingAutoConfiguration` and registers the `DefaultTracingObservationHandler` that bridges Observations to OTel spans). The net effect: every tool call is a named span (e.g. `blast-radius`) with its own attributes, nested under the HTTP request span.
+
+Combined with `datasource-micrometer-spring-boot` + `datasource-micrometer-opentelemetry` (both on our classpath — see [`pom.xml`](pom.xml)), every JDBC statement also becomes an OTel span with `db.query.text`, `db.system.name`, `db.operation.name`, and `db.response.returned_rows` attributes. Which means N+1 patterns are visible in Jaeger as a fan of query spans under a single handler span.
+
+**What it buys you.** No OTel Java agent, no bytecode instrumentation, no custom `@Traced` annotations. One starter, one observability pipeline, works under GraalVM native.
+
+### `mocapi-actuator` — `/actuator/mcp` inventory endpoint
+
+Adds a read-only Spring Boot Actuator endpoint that enumerates every registered tool, prompt, and resource — names, titles, descriptions, input/output schema digests, scope requirements. Ops can see what a running build exposes without opening an MCP session or hitting the LLM.
+
+**How we use it.** One-line opt-in in [`application.properties`](src/main/resources/application.properties):
+
+```properties
+management.endpoints.web.exposure.include=health,info,mcp
+```
+
+**What it buys you.** Deployment verification (`curl /actuator/mcp | jq '.tools[].name'`) and schema-drift detection (diff the digests across builds) without any custom scaffolding.
+
+### `substrate-postgresql` — persistent MCP session state
+
+Mocapi's session state (atoms, mailboxes, journals, cross-node notifications) is an abstract interface (`substrate-api`) with pluggable backends. We use the Postgres backend: four tables (`substrate_atom`, `substrate_mailbox`, `substrate_journal_entries`, `substrate_journal_completed`) sharing the app's primary `DataSource`, plus Postgres `LISTEN`/`NOTIFY` for cross-node fan-out in the notifier.
+
+**What it buys you.**
+
+- **Sessions survive restarts.** Pod rolls, in-flight sessions stay put.
+- **Horizontal scale.** Any replica can serve any session; the `LISTEN`/`NOTIFY`-based notifier wakes the right replica when a message lands in a mailbox.
+- **No extra infra.** One Postgres — same connection pool as the catalog schema. Nothing new for ops to run.
+
+Auto-create-schema flags (`substrate.atom.auto-create-schema`, etc.) default to `true` so tables appear on first boot; flip to `false` in prod once DBAs own the schema.
+
+### `substrate-crypto` — AES-GCM encryption at rest
+
+Auto-configures `AesGcmPayloadTransformer`, which Substrate invokes before writes and after reads. With it on the classpath and `substrate.crypto.shared-key` set, every payload (atom values, mailbox messages, journal entries) is stored as AES-256-GCM ciphertext. Without the key set, Substrate skips the transformer and writes plaintext — no silent failure, just no encryption.
+
+**How we use it.** [`EncryptionBootstrap.java`](src/main/java/com/callibrity/mocapi/demo/infra/EncryptionBootstrap.java) generates an ephemeral `substrate.crypto.shared-key` in local dev so the feature is on by default. Prod sets `SUBSTRATE_CRYPTO_SHARED_KEY` and (when rotating) bumps `SUBSTRATE_CRYPTO_SHARED_KID`.
+
+**Key rotation.** `substrate.crypto.shared-kid` (integer, default `0`) tags new writes with the current key id. Old rows keep decrypting under their original kid until they expire or are rewritten. Rotation is a matter of updating the key/kid pair in config — no schema migration.
+
+**Keys that never live in the JVM.** The `substrate.crypto.shared-key` property is optional: if you provide your own `SecretKeyResolver` bean (kid → `SecretKey`), Substrate calls it instead. That's the KMS / Vault / HSM integration point — resolve the key outside the JVM (or even out of the process entirely) on first use, cache it, and let `AesGcmPayloadTransformer` use the material without it ever being written to a property file.
+
+---
+
 ## Configuration
 
 Everything is env-var overridable. Useful ones:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MOCAPI_SESSION_ENCRYPTION_MASTER_KEY` | *ephemeral on boot* | AES-256 key (base64, 32 bytes) for session-at-rest encryption |
+| `MOCAPI_SESSION_ENCRYPTION_MASTER_KEY` | *ephemeral on boot* | AES-256 key (base64, 32 bytes) Mocapi uses to encrypt SSE `Last-Event-Id` resume tokens |
+| `SUBSTRATE_CRYPTO_SHARED_KEY` | *ephemeral on boot* | AES-256 key (base64, 32 bytes) Substrate uses to encrypt session payloads at rest in Postgres |
+| `SUBSTRATE_CRYPTO_SHARED_KID` | `0` | Integer key id, for rotation — new writes use the current kid, old rows can still decrypt |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | `http://localhost:8180/realms/mocapi-demo` | IdP issuer |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES` | `http://localhost:8080/mcp` | Expected `aud` claim value |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | `<issuer>/protocol/openid-connect/certs` | JWKS endpoint |
