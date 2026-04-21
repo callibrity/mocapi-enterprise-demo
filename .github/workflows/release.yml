@@ -57,7 +57,7 @@ jobs:
       contents: read
     steps:
       - name: Log in to Azure via OIDC
-        uses: azure/login@v2
+        uses: azure/login@93381592711f247e165c389ebb30b596c84cdc48 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

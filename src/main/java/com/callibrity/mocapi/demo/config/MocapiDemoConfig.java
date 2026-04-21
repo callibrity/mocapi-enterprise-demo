@@ -55,6 +55,24 @@ public class MocapiDemoConfig {
     return http -> http.cors(Customizer.withDefaults());
   }
 
+  /**
+   * Actuator endpoints are intentionally unauthenticated so Kubernetes / ACA probes can hit {@code
+   * /actuator/health/**} without a bearer token. The chain disables CSRF protection because:
+   *
+   * <ul>
+   *   <li><b>No ambient credentials.</b> CSRF exploits sessions carried automatically by the
+   *       browser (cookies, HTTP Basic). This chain uses neither — requests are anonymous. There is
+   *       no authenticated state for an attacker to ride on, so the CSRF class of attack does not
+   *       apply.
+   *   <li><b>Endpoints are read-only.</b> We expose {@code health}, {@code info}, and {@code mcp}
+   *       (see {@code management.endpoints.web.exposure.include}). All are GET-only and
+   *       side-effect-free.
+   *   <li><b>CSRF would break probes.</b> Spring Security's CSRF filter rejects non-safe HTTP
+   *       methods without a token. Liveness / readiness / startup probes are issued by the platform
+   *       and do not carry CSRF tokens; enabling CSRF would cause the orchestrator to mark the
+   *       container unhealthy and crash-loop.
+   * </ul>
+   */
   @Bean
   @Order(Ordered.HIGHEST_PRECEDENCE)
   public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) {
