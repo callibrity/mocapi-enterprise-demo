@@ -1,0 +1,65 @@
+name: Feature Request
+description: Suggest a new tool, field, or capability
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! For new tools or fields, ground the request in a real catalog question — what would the LLM need to answer that it can't today?
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The Catalog Question This Would Answer
+      description: What real user question is the new feature for?
+      placeholder: 'Example: "Which services owned by team X have no runbook URL set?"'
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing-gap
+    attributes:
+      label: Why Existing Tools Don't Cover It
+      description: Which tools you tried first and why they fell short. If a small change to an existing tool would solve this, say so — additive changes are usually preferred over new tools.
+      placeholder: I tried services-list with filter X, but it doesn't return field Y, so...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Shape
+      description: Sketch the tool/field/change. Name params, types, and the response shape.
+      placeholder: |
+        New tool: services-by-team
+        Inputs: team: string (required)
+        Output: PageDto<ServiceSummaryDto>
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other shapes you considered, and why this one wins
+      placeholder: I also considered...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: breaking-change
+    attributes:
+      label: Breaking Change
+      description: Would this require breaking changes to existing tools or DTOs?
+      options:
+        - label: This would be a breaking change
+          required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, mockups, or examples
+      placeholder: Any other information that might be helpful
+    validations:
+      required: false

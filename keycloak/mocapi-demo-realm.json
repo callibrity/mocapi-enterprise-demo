@@ -1,0 +1,129 @@
+{
+  "realm": "mocapi-demo",
+  "enabled": true,
+  "accessTokenLifespan": 3600,
+  "clientScopes": [
+    {
+      "name": "catalog:read",
+      "description": "Read-only access to the service/team lookup + list tools.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "catalog:analyze",
+      "description": "Access to dependency / blast-radius / deprecation-debt analysis tools.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "feedback:write",
+      "description": "Ability to submit feedback + suggest-tool proposals back to the server.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "meridian-viewer",
+      "name": "Meridian Viewer (catalog:read)",
+      "description": "Read-only persona. Everyday service/team lookup and discovery — the 80% hit.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "meridian-viewer-secret",
+      "defaultClientScopes": ["catalog:read"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "access.token.signed.response.alg": "RS256"
+      },
+      "protocolMappers": [
+        {
+          "name": "mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://localhost:8080/mcp",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "meridian-oncall",
+      "name": "Meridian Oncall (catalog:read + catalog:analyze)",
+      "description": "2am-page persona. Adds dependency traversal, blast-radius, orphaned + deprecated analysis for incident triage and migration planning.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "meridian-oncall-secret",
+      "defaultClientScopes": ["catalog:read", "catalog:analyze"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "access.token.signed.response.alg": "RS256"
+      },
+      "protocolMappers": [
+        {
+          "name": "mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://localhost:8080/mcp",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "meridian-owner",
+      "name": "Meridian Owner (all scopes)",
+      "description": "Catalog maintainer persona. Adds feedback + tool-proposal submission for evolving the server itself.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "meridian-owner-secret",
+      "defaultClientScopes": ["catalog:read", "catalog:analyze", "feedback:write"],
+      "optionalClientScopes": [],
+      "attributes": {
+        "access.token.signed.response.alg": "RS256"
+      },
+      "protocolMappers": [
+        {
+          "name": "mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://localhost:8080/mcp",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

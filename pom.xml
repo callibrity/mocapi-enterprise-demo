@@ -1,0 +1,425 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright © 2026 Callibrity, Inc. (contactus@callibrity.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.5</version>
+    </parent>
+
+    <groupId>com.callibrity.mocapi</groupId>
+    <artifactId>mocapi-demo</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Mocapi Demo</name>
+    <description>Enterprise-grade MCP server demo built with Spring Boot and Mocapi</description>
+    <inceptionYear>2026</inceptionYear>
+
+    <properties>
+        <java.version>25</java.version>
+        <mocapi.version>0.12.1</mocapi.version>
+        <substrate.version>0.7.0</substrate.version>
+        <jpa-utils.version>0.0.12</jpa-utils.version>
+        <opentelemetry-instrumentation.version>2.24.0-alpha</opentelemetry-instrumentation.version>
+        <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
+
+        <!-- Code-quality plugin versions -->
+        <license-maven-plugin.version>5.0.0</license-maven-plugin.version>
+        <spotless-maven-plugin.version>3.4.0</spotless-maven-plugin.version>
+        <google-java-format.version>1.35.0</google-java-format.version>
+        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
+        <sonar.plugin.version>5.5.0.6356</sonar.plugin.version>
+
+        <!-- License header configuration -->
+        <license.email>contactus@callibrity.com</license.email>
+        <license.owner>Callibrity, Inc.</license.owner>
+
+        <!-- SonarCloud configuration -->
+        <sonar.organization>callibrity</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.projectKey>callibrity_mocapi-demo</sonar.projectKey>
+        <!-- Seed data isn't worth testing — the literals are the value. The main class is the
+             standard Spring Boot entry point with no logic. -->
+        <sonar.coverage.exclusions>
+            **/catalog/seed/**,
+            **/CoworkConnectorApplication.java
+        </sonar.coverage.exclusions>
+        <!-- Service names in the seed graph are schema, not magic values; extracting 36 constants would
+             be strictly worse than the current hand-authored fixture. -->
+        <sonar.issue.ignore.multicriteria>e1</sonar.issue.ignore.multicriteria>
+        <sonar.issue.ignore.multicriteria.e1.ruleKey>java:S1192</sonar.issue.ignore.multicriteria.e1.ruleKey>
+        <sonar.issue.ignore.multicriteria.e1.resourceKey>**/catalog/seed/**</sonar.issue.ignore.multicriteria.e1.resourceKey>
+
+        <!-- Placeholder for jacoco's argLine; populated by the ci profile, empty otherwise. -->
+        <jacocoArgLine></jacocoArgLine>
+
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Data layer -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- Runtime DB is Postgres; H2 stays on the classpath for tests only. -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jwcarman.jpa</groupId>
+            <artifactId>jpa-utils</artifactId>
+            <version>${jpa-utils.version}</version>
+        </dependency>
+        <!-- Liquibase manages the catalog schema (service / team / dependency / service_tag).
+             Substrate-postgresql manages its own session-state tables via bundled SQL scripts
+             gated on substrate.*.auto-create-schema flags, so the two migration stories don't
+             overlap. Hibernate runs in ddl-auto=validate mode to verify the live schema
+             matches our entities. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-liquibase</artifactId>
+        </dependency>
+        <!-- Substrate Postgres backend: backs Mocapi's session Mailbox / Notifier / Journal /
+             Atom with Postgres so sessions survive across app restarts. Shares the primary
+             Spring DataSource. -->
+        <dependency>
+            <groupId>org.jwcarman.substrate</groupId>
+            <artifactId>substrate-postgresql</artifactId>
+        </dependency>
+        <!-- spring-boot-docker-compose: when present on the classpath, `mvn spring-boot:run`
+             auto-starts the services declared in compose.yaml (a local Postgres) and injects
+             spring.datasource.* properties pointing at it. Keeps local dev one-command. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-docker-compose</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Mocapi -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-streamable-http-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- OAuth2 resource-server protection on the MCP endpoint. Configured via
+             spring.security.oauth2.resourceserver.jwt.* (Auth0 issuer + audience injected in
+             staging / production) and mocapi.oauth2.* (protected-resource metadata). See
+             application.properties for the exact property names the deployment has to set.
+             mocapi-oauth2 transitively pulls in spring-boot-starter-oauth2-resource-server,
+             so the Spring Security starter doesn't need its own declaration. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-oauth2</artifactId>
+        </dependency>
+        <!-- Jakarta Bean Validation on @ToolMethod / @PromptMethod / @ResourceTemplateMethod
+             parameters. Violations in tool handlers surface as CallToolResult.isError=true
+             (LLM-self-correction path); violations in prompt/resource handlers surface as
+             JSON-RPC -32602 with per-violation {field, message} data. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-jakarta-validation</artifactId>
+        </dependency>
+        <!-- SLF4J MDC correlation on handler invocations: stamps mcp.session / mcp.handler.kind /
+             mcp.handler.name on the MDC so every log line (including user handler code) carries
+             correlation context. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-logging</artifactId>
+        </dependency>
+        <!-- mocapi-otel: bundles mocapi-o11y (Observation wrapper on every handler) with
+             Spring Boot's spring-boot-starter-opentelemetry, which in Spring Boot 4 is the
+             dep that activates MicrometerTracingAutoConfiguration + registers the
+             DefaultTracingObservationHandler that bridges Observations to OTel spans. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-otel</artifactId>
+        </dependency>
+        <!-- /actuator/mcp read-only inventory endpoint: lists registered tools / prompts /
+             resources with schema digests so ops can see what's running without opening a session. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-actuator</artifactId>
+        </dependency>
+        <!-- Scope/role guards: @RequiresScope / @RequiresRole hide unauthorized tools from
+             tools/list (schema-level, not just 403) and return JSON-RPC -32003 on invocation.
+             Wires to Spring Security's JWT converter — scopes in the token scope claim become
+             SCOPE_<name> granted authorities the guards check. -->
+        <dependency>
+            <groupId>com.callibrity.mocapi</groupId>
+            <artifactId>mocapi-spring-security-guards</artifactId>
+        </dependency>
+        <!-- OTel logback appender: Logback log events -> OTel LogRecords. Spring Boot's OTel
+             starter (transitive via mocapi-otel) ships the OTLP exporter that pushes these to
+             the sidecar collector, which translates to Azure Monitor's wire format before
+             sending to App Insights. Nothing Azure-specific on this app's classpath — the
+             sidecar owns the Azure integration, keeping this image GraalVM-native-safe and
+             backend-portable. -->
+        <dependency>
+            <groupId>io.opentelemetry.instrumentation</groupId>
+            <artifactId>opentelemetry-logback-appender-1.0</artifactId>
+        </dependency>
+        <!-- JDBC observability: wraps the DataSource so every SQL statement emits a Micrometer
+             Observation. Those Observations flow through the MicrometerTracing → OTel bridge
+             (already wired by spring-boot-starter-opentelemetry via mocapi-otel), so SQL spans
+             end up on the same OTLP pipeline as handler + HTTP spans. Recommended by Spring
+             Boot's observability reference docs. -->
+        <dependency>
+            <groupId>net.ttddyy.observation</groupId>
+            <artifactId>datasource-micrometer-spring-boot</artifactId>
+            <version>${datasource-micrometer.version}</version>
+        </dependency>
+        <!-- Maps datasource-micrometer's legacy jdbc.* attrs onto OTel DB semconv
+             (db.query.text, db.system.name, db.operation.name, db.response.returned_rows).
+             Auto-activates when present on the classpath. -->
+        <dependency>
+            <groupId>net.ttddyy.observation</groupId>
+            <artifactId>datasource-micrometer-opentelemetry</artifactId>
+            <version>${datasource-micrometer.version}</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.callibrity.mocapi</groupId>
+                <artifactId>mocapi-bom</artifactId>
+                <version>${mocapi.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.jwcarman.substrate</groupId>
+                <artifactId>substrate-bom</artifactId>
+                <version>${substrate.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-bom-alpha</artifactId>
+                <version>${opentelemetry-instrumentation.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${license-maven-plugin.version}</version>
+                <configuration>
+                    <properties>
+                        <owner>${license.owner}</owner>
+                        <email>${license.email}</email>
+                    </properties>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>com/mycila/maven/plugin/license/templates/APACHE-2.txt</header>
+                            <excludes>
+                                <exclude>**/README</exclude>
+                                <exclude>src/test/resources/**</exclude>
+                                <exclude>src/main/resources/**</exclude>
+                                <exclude>.claude/**</exclude>
+                                <exclude>hyperdx/**</exclude>
+                                <exclude>**/*.txt</exclude>
+                                <exclude>**/*.sh</exclude>
+                                <exclude>**/*.md</exclude>
+                                <exclude>**/*.yml</exclude>
+                                <exclude>LICENSE</exclude>
+                            </excludes>
+                        </licenseSet>
+                    </licenseSets>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>license-check</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{jacocoArgLine}</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless-maven-plugin.version}</version>
+                <configuration>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
+                        <googleJavaFormat>
+                            <version>${google-java-format.version}</version>
+                        </googleJavaFormat>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- CI profile: enables JaCoCo coverage so SonarCloud can ingest a report. -->
+        <profile>
+            <id>ci</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco.plugin.version}</version>
+                        <configuration>
+                            <propertyName>jacocoArgLine</propertyName>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <formats>
+                                        <format>XML</format>
+                                    </formats>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

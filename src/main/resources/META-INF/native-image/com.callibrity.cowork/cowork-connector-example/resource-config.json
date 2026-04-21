@@ -1,0 +1,8 @@
+{
+  "resources": {
+    "includes": [
+      { "pattern": "^www\\.liquibase\\.org/xml/ns/dbchangelog/dbchangelog-.*\\.xsd$" },
+      { "pattern": "^db/substrate/.*\\.sql$" }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+logs/
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+.claude/
+# Per-developer local overrides (gitignored). See README for examples.
+application-local.properties

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-create-team" author="mocapi">
+        <createTable tableName="team">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="display_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="on_call_rotation" type="VARCHAR(255)"/>
+            <column name="slack_channel" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="002-create-service" author="mocapi">
+        <createTable tableName="service">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="display_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="domain" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_service_owner"
+                             references="team(id)"/>
+            </column>
+            <column name="lifecycle_stage" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="repo_url" type="VARCHAR(512)"/>
+            <column name="runbook_url" type="VARCHAR(512)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="003-create-service-tag" author="mocapi">
+        <createTable tableName="service_tag">
+            <column name="service_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_service_tag_service"
+                             references="service(id)"/>
+            </column>
+            <column name="tag" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="004-create-dependency" author="mocapi">
+        <createTable tableName="dependency">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_service_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_dep_from_service"
+                             references="service(id)"/>
+            </column>
+            <column name="to_service_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_dep_to_service"
+                             references="service(id)"/>
+            </column>
+            <column name="type" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

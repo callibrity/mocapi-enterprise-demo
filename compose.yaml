@@ -1,0 +1,54 @@
+#
+# Copyright © 2026 Callibrity, Inc. (contactus@callibrity.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: mocapi-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mocapi-demo
+      POSTGRES_USER: mocapi
+      POSTGRES_PASSWORD: mocapi-dev
+    ports:
+      - "5432:5432"
+    labels:
+      org.springframework.boot.service-connection: postgres
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP HTTP (app exports here)
+
+  # Keycloak acts as the local OIDC provider. Realm + M2M client are imported
+  # from keycloak/mocapi-demo-realm.json on first boot, so a fresh clone has a
+  # working token-endpoint with known credentials — no dashboard clicks needed.
+  # Ports: 8180 for the IdP (avoids collision with the app on 8080). Dev-mode
+  # is fine for local dev; production would use `start` + a real DB.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: "8180"
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro

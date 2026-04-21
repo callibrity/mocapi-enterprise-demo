@@ -1,0 +1,96 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Start the connector with...
+        2. Call MCP tool... with arguments...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe the expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened (include error messages, stack traces, tool response payloads)
+      placeholder: Paste error messages or describe what went wrong
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Connector Version
+      description: Which version (or commit SHA) are you running?
+      placeholder: e.g., 0.3.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: Run Mode
+      description: How is the connector being run?
+      options:
+        - JVM (mvn spring-boot:run or fat jar)
+        - Native image (GraalVM)
+        - Container (Docker / Container Apps)
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: Java Version
+      description: Which JDK distribution and version?
+      placeholder: e.g., Temurin 25
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / Architecture
+      description: Operating system and CPU architecture
+      placeholder: e.g., macOS 14 / arm64, Ubuntu 24.04 / amd64
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, configuration, or information
+      placeholder: Add any other context about the problem here
+    validations:
+      required: false
