@@ -24,7 +24,19 @@ The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8
 
 ## Seeing it in action
 
-*(Screenshot / transcript of Claude answering a Meridian question via MCP tool calls lands here once the Azure deployment is live. The intended "aha" moment: a natural-language question like "who gets paged if payment-processor goes down?" produces a cascade of `service-dependents` → `blast-radius` → `team-lookup` calls and a clean human-readable answer with teams, Slack channels, and the order-of-impact list.)*
+One natural-language question, and Claude works the catalog the way a human would — only without the tab-hopping:
+
+![Claude answering "What breaks if payment-processor goes down, and who gets paged?" with an organized impact assessment naming two teams, their PagerDuty handles, Slack channels, and the three affected services.](docs/images/claude-blast-radius.png)
+
+The user asked in English. The LLM picked the right tools (`blast-radius` plus `team-lookup` for the on-call handles) and came back with a structured answer you could act on — teams to notify, PagerDuty handles to page, Slack channels to loop in, and an orphan check confirming no unowned services in the radius. The same question normally means 20 minutes of digging through Confluence, the service registry, PagerDuty, and Slack; here it's one prompt.
+
+Or harder questions — the kind a compliance audit asks — where the "right answer" isn't in any single system:
+
+![Claude answering "Which PCI-scope services are orphaned, and what's the blast radius if one of them breaks?" by identifying legacy-invoicing as a deprecated, orphaned, PCI- and SOC2-tagged service with empty blast radius but significant compliance exposure, and recommending decommission-or-reassign.](docs/images/claude-pci-orphans.png)
+
+Notice the LLM cross-referenced three different tool outputs (tag-filtered listing, orphan detection, blast-radius) and reframed the answer around the *actual* risk — compliance, not availability — with a concrete recommendation. The catalog data is the raw material; the LLM is the analyst.
+
+That's the payoff. The rest of this README is about the enterprise wrapper that makes this safe to run in production: OAuth2 with audience binding so only authorized clients get there, scope-gated tools so different users see different tool rosters, encrypted sessions so the transcript is safe at rest, and full OTLP observability so you can see exactly which tool calls the LLM made on which session for which user.
 
 ---
 
