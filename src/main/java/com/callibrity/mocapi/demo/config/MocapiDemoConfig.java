@@ -57,7 +57,7 @@ public class MocapiDemoConfig {
 
   @Bean
   @Order(Ordered.HIGHEST_PRECEDENCE)
-  public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
+  public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) {
     return http.securityMatcher(EndpointRequest.toAnyEndpoint())
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
         .cors(Customizer.withDefaults())
