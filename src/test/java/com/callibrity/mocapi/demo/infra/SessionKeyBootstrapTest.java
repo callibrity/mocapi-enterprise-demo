@@ -16,10 +16,16 @@
 package com.callibrity.mocapi.demo.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.context.event.ApplicationPreparedEvent;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.SimpleApplicationEventMulticaster;
 import org.springframework.mock.env.MockEnvironment;
 
 class SessionKeyBootstrapTest {
@@ -29,20 +35,37 @@ class SessionKeyBootstrapTest {
   @Test
   void leavesPropertyAloneWhenAlreadySet() {
     MockEnvironment env = new MockEnvironment().withProperty(PROPERTY, "preset-value");
+    SpringApplication app = new SpringApplication();
+    Set<ApplicationListener<?>> before = new HashSet<>(app.getListeners());
 
-    new SessionKeyBootstrap().postProcessEnvironment(env, new SpringApplication());
+    new SessionKeyBootstrap().postProcessEnvironment(env, app);
 
     assertThat(env.getProperty(PROPERTY)).isEqualTo("preset-value");
+    assertThat(app.getListeners()).containsExactlyInAnyOrderElementsOf(before);
   }
 
   @Test
   void generates32ByteBase64KeyWhenMissing() {
     MockEnvironment env = new MockEnvironment();
+    SpringApplication app = new SpringApplication();
+    Set<ApplicationListener<?>> before = new HashSet<>(app.getListeners());
 
-    new SessionKeyBootstrap().postProcessEnvironment(env, new SpringApplication());
+    new SessionKeyBootstrap().postProcessEnvironment(env, app);
 
     String generated = env.getProperty(PROPERTY);
     assertThat(generated).isNotBlank();
     assertThat(Base64.getDecoder().decode(generated)).hasSize(32);
+
+    // Fire an ApplicationPreparedEvent at the listener the bootstrap just registered,
+    // so the deferred-log replay lambda executes. Filter to newly-added listeners only
+    // because SpringApplication auto-loads other listeners from spring.factories that
+    // would NPE on a mocked event.
+    Set<ApplicationListener<?>> added = new HashSet<>(app.getListeners());
+    added.removeAll(before);
+    assertThat(added).hasSize(1);
+
+    SimpleApplicationEventMulticaster multicaster = new SimpleApplicationEventMulticaster();
+    added.forEach(multicaster::addApplicationListener);
+    multicaster.multicastEvent(mock(ApplicationPreparedEvent.class));
   }
 }

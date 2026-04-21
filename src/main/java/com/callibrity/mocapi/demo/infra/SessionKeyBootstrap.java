@@ -61,6 +61,6 @@ public class SessionKeyBootstrap implements EnvironmentPostProcessor {
             "Session encryption master key not set, generating an ephemeral one!!!"));
     app.addListeners(
         (ApplicationListener<ApplicationPreparedEvent>)
-            event -> log.replayTo(SessionKeyBootstrap.class));
+            _ -> log.replayTo(SessionKeyBootstrap.class));
   }
 }
