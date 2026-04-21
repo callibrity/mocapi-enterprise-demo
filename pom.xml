@@ -166,9 +166,9 @@
             <groupId>com.callibrity.mocapi</groupId>
             <artifactId>mocapi-jakarta-validation</artifactId>
         </dependency>
-        <!-- SLF4J MDC correlation on handler invocations: stamps mcp.session / mcp.handler.kind /
-             mcp.handler.name on the MDC so every log line (including user handler code) carries
-             correlation context. -->
+        <!-- SLF4J MDC correlation on handler invocations: stamps mcp.session, mcp.protocol.version,
+             mcp.handler.kind, mcp.handler.name, mcp.handler.class, and mcp.request.id on the MDC
+             so every log line (including user handler code) carries correlation context. -->
         <dependency>
             <groupId>com.callibrity.mocapi</groupId>
             <artifactId>mocapi-logging</artifactId>

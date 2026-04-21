@@ -125,7 +125,7 @@ Traces, metrics, and logs all leave the app via OTLP. Locally, Jaeger's all-in-o
 
 - **Traces**: Micrometer Observation → OTel bridge (via `spring-boot-starter-opentelemetry`, transitive through `mocapi-otel`). A single tool call produces a complete flame graph: `http post /mcp` → Spring Security filter chain → `tools/call` (RiPCurl dispatch) → tool span (e.g. `blast-radius`) → JDBC `connection`/`query`/`result-set` spans. N+1 query patterns are visible in the trace, not inferred from logs.
 - **Metrics**: Micrometer OTLP meter registry pushes on a 60s cadence. JVM, HTTP, JDBC, Hikari, Mocapi handler metrics all flow.
-- **Logs**: Logback → OTel `LogRecord` via `opentelemetry-logback-appender-1.0`, wired at boot by an explicit `OpenTelemetryAppender.install(...)`. MDC keys from `mocapi-logging` (`mcp.session`, `mcp.handler.kind`, `mcp.handler.name`) propagate as log attributes with trace/span correlation.
+- **Logs**: Logback → OTel `LogRecord` via `opentelemetry-logback-appender-1.0`, wired at boot by an explicit `OpenTelemetryAppender.install(...)`. MDC keys from `mocapi-logging` (`mcp.session`, `mcp.protocol.version`, `mcp.handler.kind`, `mcp.handler.name`, `mcp.handler.class`, `mcp.request.id`) propagate as log attributes with trace/span correlation.
 
 No OTel Java agent. No bytecode instrumentation. Works under GraalVM native without special handling.
 
@@ -265,8 +265,11 @@ Wraps every tool / prompt / resource handler invocation in an SLF4J MDC scope th
 | Key | Value |
 |---|---|
 | `mcp.session` | Session id (UUID) |
-| `mcp.handler.kind` | `tool` / `prompt` / `resource` |
-| `mcp.handler.name` | Handler method name (e.g. `blast-radius`) |
+| `mcp.protocol.version` | Negotiated MCP protocol version (e.g. `2025-11-25`) |
+| `mcp.handler.kind` | `tool` / `prompt` / `resource` / `resource_template` |
+| `mcp.handler.name` | Tool/prompt name, or resource URI / resource-template URI template |
+| `mcp.handler.class` | Simple name of the (AOP-unwrapped) Java class hosting the handler |
+| `mcp.request.id` | JSON-RPC request id for the in-flight call (absent for notifications) |
 
 **How we use it.** [`logback-spring.xml`](src/main/resources/logback-spring.xml) forwards these MDC keys into the OTel logback appender, which turns them into log-record attributes. The result: every log line the handler emits (including user code) is searchable in the logging backend by session, handler kind, or handler name, correlated with the active trace/span ids.
 
