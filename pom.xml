@@ -128,6 +128,13 @@
             <groupId>org.jwcarman.substrate</groupId>
             <artifactId>substrate-postgresql</artifactId>
         </dependency>
+        <!-- At-rest encryption for substrate payloads (atom / mailbox / journal).
+             Auto-configures an AesGcmPayloadTransformer when substrate.crypto.shared-key is set.
+             Out-of-band key management is possible via a custom SecretKeyResolver bean. -->
+        <dependency>
+            <groupId>org.jwcarman.substrate</groupId>
+            <artifactId>substrate-crypto</artifactId>
+        </dependency>
         <!-- spring-boot-docker-compose: when present on the classpath, `mvn spring-boot:run`
              auto-starts the services declared in compose.yaml (a local Postgres) and injects
              spring.datasource.* properties pointing at it. Keeps local dev one-command. -->

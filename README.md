@@ -136,7 +136,10 @@ Two durable stores, both Postgres:
 - **Catalog schema** (service, team, dependency, service_tag) — Liquibase-managed via [`src/main/resources/db/changelog/`](src/main/resources/db/changelog/). Hibernate runs in `ddl-auto=validate`, so drift between entities and schema fails startup instead of silently mutating the DB.
 - **Mocapi session state** (substrate_atom, substrate_mailbox, substrate_journal_*, substrate_notifier) — managed by [`substrate-postgresql`](https://github.com/jwcarman/substrate), shares the same `DataSource`. Sessions survive app restarts; the notifier uses Postgres `LISTEN/NOTIFY` for cross-node fan-out.
 
-Sessions are encrypted at rest with an AES-256 key. For local dev, a fresh ephemeral key is generated on boot and logged in bold red so you know you got one ([`SessionKeyBootstrap.java`](src/main/java/com/callibrity/mocapi/demo/infra/SessionKeyBootstrap.java)). For production, set `MOCAPI_SESSION_ENCRYPTION_MASTER_KEY` and the bootstrap leaves your value alone.
+Two independent AES-256 keys are in play, both bootstrapped ephemerally for local dev by [`EncryptionBootstrap.java`](src/main/java/com/callibrity/mocapi/demo/infra/EncryptionBootstrap.java) (logged in bold red so you know you got one) and overridable via env var for production:
+
+- **`mocapi.session-encryption-master-key`** — Mocapi uses this to encrypt the `streamName:eventId` pair that becomes the SSE `id:` value clients present back as `Last-Event-Id` on `GET /mcp` resume. The ciphertext is opaque to the client and tamper-proof, so a reconnecting client can't forge a stream identity or peek at server-side stream names. Override with `MOCAPI_SESSION_ENCRYPTION_MASTER_KEY`.
+- **`substrate.crypto.shared-key`** — Substrate's `AesGcmPayloadTransformer` (from `substrate-crypto`) uses this to encrypt atom / mailbox / journal payloads before they hit Postgres. Rows in `substrate_atom` are ciphertext — a DBA with raw SQL access can't read session state. Supports `shared-kid` for key rotation, or plug in a custom `SecretKeyResolver` bean (KMS / Vault / HSM) for keys that never live in the JVM. Override with `SUBSTRATE_CRYPTO_SHARED_KEY`.
 
 ### 4. GraalVM native image
 
@@ -226,7 +229,7 @@ src/main/java/com/callibrity/mocapi/demo/
 ├── security/ActuatorSecurityConfiguration.java
 └── infra/
     ├── OpenTelemetryAppenderInitializer.java   # wires logback appender to OTel SDK
-    └── SessionKeyBootstrap.java                # generates ephemeral session key on dev
+    └── EncryptionBootstrap.java                # generates ephemeral encryption keys on dev
 ```
 
 ---

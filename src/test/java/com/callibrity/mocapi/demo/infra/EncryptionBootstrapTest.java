@@ -28,33 +28,38 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.SimpleApplicationEventMulticaster;
 import org.springframework.mock.env.MockEnvironment;
 
-class SessionKeyBootstrapTest {
+class EncryptionBootstrapTest {
 
-  private static final String PROPERTY = "mocapi.session-encryption-master-key";
+  private static final String SSE_KEY = "mocapi.session-encryption-master-key";
+  private static final String AT_REST_KEY = "substrate.crypto.shared-key";
 
   @Test
-  void leavesPropertyAloneWhenAlreadySet() {
-    MockEnvironment env = new MockEnvironment().withProperty(PROPERTY, "preset-value");
+  void leavesBothPropertiesAloneWhenBothAlreadySet() {
+    MockEnvironment env =
+        new MockEnvironment()
+            .withProperty(SSE_KEY, "preset-sse")
+            .withProperty(AT_REST_KEY, "preset-atrest");
     SpringApplication app = new SpringApplication();
     Set<ApplicationListener<?>> before = new HashSet<>(app.getListeners());
 
-    new SessionKeyBootstrap().postProcessEnvironment(env, app);
+    new EncryptionBootstrap().postProcessEnvironment(env, app);
 
-    assertThat(env.getProperty(PROPERTY)).isEqualTo("preset-value");
+    assertThat(env.getProperty(SSE_KEY)).isEqualTo("preset-sse");
+    assertThat(env.getProperty(AT_REST_KEY)).isEqualTo("preset-atrest");
     assertThat(app.getListeners()).containsExactlyInAnyOrderElementsOf(before);
   }
 
   @Test
-  void generates32ByteBase64KeyWhenMissing() {
+  void generatesBothEphemeralKeysWhenNeitherSet() {
     MockEnvironment env = new MockEnvironment();
     SpringApplication app = new SpringApplication();
     Set<ApplicationListener<?>> before = new HashSet<>(app.getListeners());
 
-    new SessionKeyBootstrap().postProcessEnvironment(env, app);
+    new EncryptionBootstrap().postProcessEnvironment(env, app);
 
-    String generated = env.getProperty(PROPERTY);
-    assertThat(generated).isNotBlank();
-    assertThat(Base64.getDecoder().decode(generated)).hasSize(32);
+    assertThat(Base64.getDecoder().decode(env.getProperty(SSE_KEY))).hasSize(32);
+    assertThat(Base64.getDecoder().decode(env.getProperty(AT_REST_KEY))).hasSize(32);
+    assertThat(env.getProperty(SSE_KEY)).isNotEqualTo(env.getProperty(AT_REST_KEY));
 
     // Fire an ApplicationPreparedEvent at the listener the bootstrap just registered,
     // so the deferred-log replay lambda executes. Filter to newly-added listeners only
@@ -67,5 +72,16 @@ class SessionKeyBootstrapTest {
     SimpleApplicationEventMulticaster multicaster = new SimpleApplicationEventMulticaster();
     added.forEach(multicaster::addApplicationListener);
     multicaster.multicastEvent(mock(ApplicationPreparedEvent.class));
+  }
+
+  @Test
+  void fillsInOnlyMissingKey() {
+    MockEnvironment env = new MockEnvironment().withProperty(SSE_KEY, "preset-sse");
+    SpringApplication app = new SpringApplication();
+
+    new EncryptionBootstrap().postProcessEnvironment(env, app);
+
+    assertThat(env.getProperty(SSE_KEY)).isEqualTo("preset-sse");
+    assertThat(Base64.getDecoder().decode(env.getProperty(AT_REST_KEY))).hasSize(32);
   }
 }
