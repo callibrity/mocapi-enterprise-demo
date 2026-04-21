@@ -67,4 +67,5 @@ jobs:
           az containerapp update \
             --name mocapi-enterprise-demo \
             --resource-group callibrity-staging \
+            --container-name mocapi-enterprise-demo \
             --image ghcr.io/${{ github.repository }}:${{ github.ref_name }}
