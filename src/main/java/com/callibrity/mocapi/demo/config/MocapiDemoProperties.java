@@ -16,6 +16,7 @@
 package com.callibrity.mocapi.demo.config;
 
 import lombok.Data;
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.web.cors.CorsConfiguration;
 
@@ -23,8 +24,13 @@ import org.springframework.web.cors.CorsConfiguration;
  * Demo-app configuration bound under the {@code mocapi.demo} prefix. Currently holds a single
  * {@link CorsConfiguration} populated from {@code mocapi.demo.cors.*} properties and consumed by
  * {@link MocapiDemoConfig#corsConfigurationSource}.
+ *
+ * <p>{@link RegisterReflectionForBinding} is necessary so GraalVM native-image can reflectively
+ * invoke {@code CorsConfiguration}'s setters during property binding; without it, boot fails in
+ * native builds on the first {@code mocapi.demo.cors.*} key.
  */
 @ConfigurationProperties(prefix = "mocapi.demo")
+@RegisterReflectionForBinding(CorsConfiguration.class)
 @Data
 public class MocapiDemoProperties {
 

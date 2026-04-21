@@ -153,6 +153,17 @@ Full native build in ~1.5 min (`mvn -Pnative native:compile` with GraalVM 25). R
 
 Reachability hints for Liquibase XSDs, substrate SQL scripts, and Hibernate's `UUID[]` loader live in [`src/main/resources/META-INF/native-image/`](src/main/resources/META-INF/native-image/).
 
+**Gotcha worth naming:** when `@ConfigurationProperties` binds to a **Spring-framework type** (we bind to `CorsConfiguration` from `spring-web`), native-image can't find its setters at build-time because that type isn't designed as a properties POJO and therefore isn't auto-hinted. Boot fails on the first matching property key. Fix is one annotation on the properties class:
+
+```java
+@ConfigurationProperties(prefix = "mocapi.demo")
+@RegisterReflectionForBinding(CorsConfiguration.class)
+@Data
+public class MocapiDemoProperties { … }
+```
+
+Your own nested types auto-hint; only cross-library types need this. See [`MocapiDemoProperties.java`](src/main/java/com/callibrity/mocapi/demo/config/MocapiDemoProperties.java).
+
 CI builds the native image via Paketo buildpacks (`spring-boot:build-image`) and pushes to GHCR on every tagged release — see [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 ---
