@@ -157,7 +157,7 @@ CI builds the native image via Paketo buildpacks (`spring-boot:build-image`) and
 ### Deployment
 
 ```mermaid
-flowchart LR
+flowchart TD
   llm[Claude / MCP client] -->|Bearer JWT| app[mocapi-demo]
   app -->|JDBC| pg[(Postgres)]
   app -->|OIDC discovery + JWKS| kc[Keycloak]
