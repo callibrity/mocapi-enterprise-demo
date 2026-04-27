@@ -38,7 +38,7 @@
         <mocapi.version>0.13.0</mocapi.version>
         <substrate.version>0.7.0</substrate.version>
         <jpa-utils.version>0.0.12</jpa-utils.version>
-        <opentelemetry-instrumentation.version>2.26.1-alpha</opentelemetry-instrumentation.version>
+        <opentelemetry-instrumentation.version>2.27.0-alpha</opentelemetry-instrumentation.version>
         <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
 
         <!-- Code-quality plugin versions -->
