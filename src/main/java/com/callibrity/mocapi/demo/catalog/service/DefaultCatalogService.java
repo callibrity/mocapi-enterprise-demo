@@ -44,9 +44,21 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Read-only catalog queries backing the MCP tools.
+ *
+ * <p>Every method is a read, so the whole class is {@code @Transactional(readOnly = true)}. Without
+ * it each repository call checks out its own connection from the pool and hands it straight back —
+ * a single {@code blast-radius} traversal took <em>five</em> separate connections, visible in Tempo
+ * as five sibling {@code connection} spans under one handler span. One transaction means one
+ * connection for the whole traversal, and {@code readOnly} lets Hibernate skip dirty-check
+ * bookkeeping for entities it will never flush.
+ */
 @Component
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class DefaultCatalogService implements CatalogService {
 
   private static final int DEFAULT_PAGE_SIZE = 20;
@@ -191,6 +203,14 @@ public class DefaultCatalogService implements CatalogService {
    * end of each row is the neighbor. The {@code visited} set makes cycles safe — service graphs
    * routinely contain them — and doubles as the deduplicator, since two paths often reach the same
    * service.
+   *
+   * <p><b>This is an N+1, deliberately.</b> One {@code SELECT} per visited node, plus a per-row
+   * team/tag fetch from the {@code EAGER} associations on {@link Service}. Open any {@code
+   * blast-radius} trace in Tempo and you can count them. A recursive CTE would collapse the walk
+   * into one query, and that is the right answer for a real catalog — but it trades readable Java
+   * for database-specific SQL, and at this demo's scale (36 services, 86 dependencies) the whole
+   * traversal runs in about 2ms. The tradeoff is left visible on purpose: the observability stack
+   * is supposed to show you things like this, and it does.
    *
    * @param transitive when false, stops after one hop (direct neighbors only)
    */
