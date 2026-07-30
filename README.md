@@ -274,12 +274,19 @@ scripts/run-native.sh
 
 Buildpacks run the native-image compilation inside a container, so Docker is the only prerequisite. It's the same `spring-boot:build-image` invocation [`release.yml`](.github/workflows/release.yml) uses to publish to GHCR — what you run locally is what ships. The script also brings up the compose stack and joins the app container to its network, since a native image gets none of the dev-time conveniences `mvn spring-boot:run` does.
 
-The result:
+Measured on an M-series Mac, Docker with 16GB, against the seeded 36-service catalog:
 
-- ~200MB image, ~100MB resident after warmup
-- **Starts in ~0.3s**
-- Same Postgres + OAuth2 + OTel + scope guards as the JVM build — nothing strips out under native
-- Elicitation replay works identically; verify with `scripts/verify-elicitation.sh` against the running container
+| | |
+|---|---|
+| **Startup** | **0.25 – 0.32s** |
+| Image size | 228 MB |
+| Resident, idle | ~125 MB |
+| Resident, after 41k requests | ~377 MB |
+| Build time | ~1m 50s (plus the first-run builder pull) |
+
+Those are container figures — `docker stats` on the running app, so they include the container's own overhead. Resident memory grows roughly 3× under sustained load and then holds steady; if you need a number for capacity planning, use the loaded one, not the idle one.
+
+Everything else matches the JVM build: same Postgres, OAuth2, OTel, and scope guards — nothing strips out under native. Elicitation replay works identically; verify it against the running container with `scripts/verify-elicitation.sh`.
 
 Reachability hints for Liquibase XSDs and Hibernate's `UUID[]` loader live in [`src/main/resources/META-INF/native-image/`](src/main/resources/META-INF/native-image/). Notably there are **no Mocapi-specific hints** — the library ships its own and needs no configuration from you.
 
@@ -498,6 +505,9 @@ The routing headers must agree with the JSON-RPC body. `Mcp-Method` must equal `
 
 **`405 Method Not Allowed` on `GET /mcp`**
 Correct and expected. MCP `2026-07-28` is POST-only; the standalone SSE stream is gone. Note you'll see `401` instead if your token is missing — authentication runs before method checks.
+
+**`java.lang.Error: Unresolved compilation problem` at startup, but `mvn verify` passes**
+An IDE using the Eclipse JDT language server (VS Code's Java extension, Eclipse itself) compiled into `target/classes` without Lombok's annotation processor, leaving error-stub `.class` files that override Maven's. The giveaway is a bean failing to instantiate for a class that compiles fine on the command line. Run `mvn clean`, and make sure Lombok is enabled in your editor's Java tooling.
 
 **`ClassNotFoundException` for a class you deleted**
 `spring-boot:run` reuses `target/classes`, and the resources plugin does not remove files you deleted from `src`. A stale `META-INF/spring.factories` will happily reference a class that no longer exists. Run `mvn clean`.

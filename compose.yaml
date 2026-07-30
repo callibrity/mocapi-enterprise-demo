@@ -38,7 +38,7 @@ services:
   # deployment has one as a pod sidecar) which fans out to whatever backends the
   # org actually runs.
   otel-lgtm:
-    image: grafana/otel-lgtm:latest
+    image: grafana/otel-lgtm:0.29.2
     ports:
       - "3000:3000"     # Grafana UI
       - "4318:4318"     # OTLP HTTP  (traces + metrics + logs all land here)
