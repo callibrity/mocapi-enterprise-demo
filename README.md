@@ -20,6 +20,21 @@ The point isn't the catalog. The point is what sits around it: OAuth2 with RFC 8
 
 **How to use this repo.** For *how Mocapi works* — tool dispatch, schema generation, the streamable HTTP transport, bean validation mechanics, MDC correlation, Observation-to-OTel bridging — read the [Mocapi docs](https://github.com/callibrity/mocapi). This repo picks up where those leave off: it shows the **enterprise wrapper** you build around Mocapi when you're taking MCP from a toy to a deployment.
 
+### Start here
+
+This README is long because the demo is thorough. You almost certainly don't need all of it — pick your row:
+
+| If you want to… | Go to | Time |
+|---|---|---|
+| See it running and call a tool | [Quickstart](#quickstart) | 2 min |
+| Add your own tool | [Write your first tool](#write-your-first-tool) | 10 min |
+| Understand the production patterns | [Enterprise pillars](#enterprise-pillars) | 15 min |
+| Know which Mocapi module does what | [Feature tour](#feature-tour--mocapi) | skim |
+| Run the native image | [GraalVM native image](#5-graalvm-native-image) | 1 command |
+| Fix something that's broken | [Troubleshooting](#troubleshooting) | — |
+
+The only prerequisites are **Java 25**, **Maven**, and **Docker**. Everything else — Postgres, Keycloak, Jaeger, realm import, seed data — is started for you.
+
 ---
 
 ## Seeing it in action
@@ -93,6 +108,67 @@ It reports the protocol versions the server accepts, its capabilities, cache dir
 Swap `meridian-oncall` in step 2 for `meridian-viewer` or `meridian-owner` and re-run `tools/list`: you'll get 4, 10, or 12 tools depending on the token's scopes. That's scope-gated visibility, covered below.
 
 Traces land in Jaeger at <http://localhost:16686>. Keycloak's admin console (if you want to poke around the realm) is at <http://localhost:8180>, `admin` / `admin`.
+
+---
+
+## Write your first tool
+
+A tool is a public method with an annotation. That's the whole contract — no interface to implement, no registration step, no schema to hand-write.
+
+Add this to any `@Component` (or make a new one) and restart:
+
+```java
+@McpTool(name = "coin-flip", title = "Coin Flip", description = "Flips a coin.")
+public String coinFlip() {
+  return ThreadLocalRandom.current().nextBoolean() ? "heads" : "tails";
+}
+```
+
+It shows up in `tools/list` immediately. Four things happened without you asking:
+
+1. **The tool was discovered and registered.** Mocapi scans Spring beans for `@McpTool` at startup — you'll see `Registered MCP tool: "coin-flip"` in the log.
+2. **An input schema was generated** from the method signature. No parameters here, so it's empty.
+3. **An output schema was derived** from the return type. `String` becomes text content; return a record and you get `structuredContent` plus a JSON Schema describing it.
+4. **It became visible to every caller**, because nothing gated it. See step 3 below.
+
+### Adding parameters
+
+Parameters become the input schema. Validation annotations are enforced *before* your method runs, and their constraints appear in the schema the LLM sees:
+
+```java
+@McpTool(name = "coin-flip", title = "Coin Flip", description = "Flips a coin N times.")
+public List<String> coinFlip(
+    @Schema(description = "How many times to flip") @Min(1) @Max(10) int times) {
+  return IntStream.range(0, times)
+      .mapToObj(i -> ThreadLocalRandom.current().nextBoolean() ? "heads" : "tails")
+      .toList();
+}
+```
+
+Send `times: 50` and the call is rejected with a validation error — your method is never entered.
+
+### Gating it by scope
+
+Add `@RequiresScope` and the tool disappears for tokens that lack it — not "returns 403", but is absent from `tools/list` entirely, so the LLM never learns it exists:
+
+```java
+@RequiresScope("catalog:analyze")
+@McpTool(name = "coin-flip", ...)
+```
+
+This is why `meridian-viewer` sees 4 tools and `meridian-owner` sees 12.
+
+### Where descriptions come from
+
+Real tools in this repo use `description = "${tools.catalog.blast-radius.description}"`, resolved from [`application.properties`](src/main/resources/application.properties). Tool descriptions are prompt engineering — they're how the LLM decides *when* to call something — and they get long. Externalizing keeps the Java readable and lets you tune the wording without recompiling.
+
+Compare `CatalogTools.java` (thin, scannable) with the description block in `application.properties` (verbose, deliberately so).
+
+### Where to put it
+
+The demo separates transport from logic: [`CatalogTools`](src/main/java/com/callibrity/mocapi/demo/catalog/mcp/CatalogTools.java) is a thin `@McpTool` adapter that delegates to [`CatalogService`](src/main/java/com/callibrity/mocapi/demo/catalog/service/CatalogService.java), which knows nothing about MCP. Business logic stays testable without a protocol, and a REST adapter over the same service would look symmetrically thin.
+
+For a tool that needs to *ask the user something*, see [interactive tools](#4-interactive-tools--elicitation-without-a-session).
 
 ---
 
@@ -180,13 +256,22 @@ It drives all three legs and asserts both answers survive replay. Since `mocapi.
 
 ### 5. GraalVM native image
 
-Full native build in ~1.5 min (`mvn -Pnative native:compile` with GraalVM 25). Resulting binary:
+One command, and **you do not need GraalVM installed**:
 
-- ~210MB on disk, ~100MB resident after warmup
-- Starts in ~150ms
+```bash
+scripts/run-native.sh
+```
+
+Buildpacks run the native-image compilation inside a container, so Docker is the only prerequisite. It's the same `spring-boot:build-image` invocation [`release.yml`](.github/workflows/release.yml) uses to publish to GHCR — what you run locally is what ships. The script also brings up the compose stack and joins the app container to its network, since a native image gets none of the dev-time conveniences `mvn spring-boot:run` does.
+
+The result:
+
+- ~200MB image, ~100MB resident after warmup
+- **Starts in ~0.3s**
 - Same Postgres + OAuth2 + OTel + scope guards as the JVM build — nothing strips out under native
+- Elicitation replay works identically; verify with `scripts/verify-elicitation.sh` against the running container
 
-Reachability hints for Liquibase XSDs and Hibernate's `UUID[]` loader live in [`src/main/resources/META-INF/native-image/`](src/main/resources/META-INF/native-image/).
+Reachability hints for Liquibase XSDs and Hibernate's `UUID[]` loader live in [`src/main/resources/META-INF/native-image/`](src/main/resources/META-INF/native-image/). Notably there are **no Mocapi-specific hints** — the library ships its own and needs no configuration from you.
 
 **Gotcha worth naming:** when `@ConfigurationProperties` binds to a **Spring-framework type** (we bind to `CorsConfiguration` from `spring-web`), native-image can't find its setters at build-time because that type isn't designed as a properties POJO and therefore isn't auto-hinted. Boot fails on the first matching property key. Fix is one annotation on the properties class:
 
@@ -388,6 +473,42 @@ src/main/java/com/callibrity/mocapi/demo/
 Plus `scripts/verify-elicitation.sh` — drives a full three-leg elicitation round
 trip against a running server (JVM or native binary) and asserts the answers
 survive replay.
+
+---
+
+## Troubleshooting
+
+Every entry here is something that actually happened while building this demo, not a hypothetical.
+
+**`406 Not Acceptable` — "Client must accept both application/json and text/event-stream"**
+The spec requires clients to accept both, because any call may stream progress. Send `-H 'Accept: application/json, text/event-stream'` — both, on every request, even ones you expect to be plain JSON.
+
+**`-32020 HeaderMismatch`**
+The routing headers must agree with the JSON-RPC body. `Mcp-Method` must equal `params.method`, and on `tools/call` / `prompts/get`, `Mcp-Name` must equal `params.name`. This is deliberate: gateways can route and authorize without parsing a body. If you're scripting with curl, a shell-quoting slip that merges two `-H` flags produces exactly this error.
+
+**`405 Method Not Allowed` on `GET /mcp`**
+Correct and expected. MCP `2026-07-28` is POST-only; the standalone SSE stream is gone. Note you'll see `401` instead if your token is missing — authentication runs before method checks.
+
+**`ClassNotFoundException` for a class you deleted**
+`spring-boot:run` reuses `target/classes`, and the resources plugin does not remove files you deleted from `src`. A stale `META-INF/spring.factories` will happily reference a class that no longer exists. Run `mvn clean`.
+
+**Liquibase `ValidationFailedException: N changesets check sum`**
+The JVM build and the native image compute different checksums for the same changelog, so a database populated by one is rejected by the other. `scripts/run-native.sh` sidesteps this by giving the native build its own `mocapi-demo-native` database. If you hit it another way, either point at a fresh database or `docker compose down -v` to start clean.
+
+**`Failed to determine a suitable driver class`**
+Something is running without datasource settings. `spring-boot-docker-compose` supplies them for `mvn spring-boot:run` only — it's a dev-time feature and does not apply to a native image or a plain `java -jar`. `application.properties` carries defaults matching `compose.yaml`, so this usually means those were overridden or the database name doesn't exist yet.
+
+**`jq: command not found`**
+The verification scripts use it. `brew install jq`.
+
+**`native-image is not installed in your JAVA_HOME`**
+You don't need it — use `scripts/run-native.sh`, which builds via buildpacks inside a container. If you're deliberately running `mvn -Pnative native:compile` locally, note that jenv/sdkman shims reset `JAVA_HOME` for the `mvn` process, so export `GRAALVM_HOME` explicitly.
+
+**Native build fails with `exit status 137` or "The Native Image build process ran out of memory"**
+The buildpack compiles inside a container, so it gets Docker's memory allocation, not your machine's. Docker Desktop's default (often 8GB) is not enough — the build needs **12GB or more**. Raise it in Docker Desktop → Settings → Resources → Memory. `scripts/run-native.sh` checks this before starting and tells you if it's too low.
+
+**Elicitation retry rejected after a restart**
+`mocapi.mrtr.secret` defaults to a key generated at startup, so `requestState` tokens die with the process. Set it explicitly for anything longer-lived than a demo, and always for more than one replica.
 
 ---
 

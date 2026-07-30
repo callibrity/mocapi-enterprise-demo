@@ -174,6 +174,26 @@ public class DefaultCatalogService implements CatalogService {
         .orElseThrow(() -> new IllegalArgumentException("Unknown service: " + name));
   }
 
+  /**
+   * Walks the dependency graph outward from {@code start}, breadth-first, and returns everything
+   * reached (excluding {@code start} itself).
+   *
+   * <p>The two function parameters are what let one method serve both directions. A {@link
+   * Dependency} is a directed edge, so "what does X depend on?" and "what depends on X?" are the
+   * same walk with the arrows reversed:
+   *
+   * <ul>
+   *   <li><b>Downstream</b> — {@code findAllByFromService} + {@code getToService}
+   *   <li><b>Upstream</b> — {@code findAllByToService} + {@code getFromService}
+   * </ul>
+   *
+   * <p>{@code edges} picks which dependency rows to follow from a node; {@code next} picks which
+   * end of each row is the neighbor. The {@code visited} set makes cycles safe — service graphs
+   * routinely contain them — and doubles as the deduplicator, since two paths often reach the same
+   * service.
+   *
+   * @param transitive when false, stops after one hop (direct neighbors only)
+   */
   private List<Service> traverse(
       Service start,
       boolean transitive,
