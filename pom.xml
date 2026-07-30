@@ -35,10 +35,16 @@
 
     <properties>
         <java.version>25</java.version>
-        <mocapi.version>0.13.0</mocapi.version>
-        <substrate.version>0.7.0</substrate.version>
+        <mocapi.version>1.0.0</mocapi.version>
         <jpa-utils.version>0.0.12</jpa-utils.version>
-        <opentelemetry-instrumentation.version>2.26.1-alpha</opentelemetry-instrumentation.version>
+        <!-- Must stay aligned with the opentelemetry-core version Spring Boot manages
+             (<opentelemetry.version>, 1.55.0 for Boot 4.0.5). Boot's BOM is imported first
+             and wins, so a newer instrumentation release resolves its own core away: 2.26.x
+             calls the stable LogRecordBuilder.setException(), which only exists in
+             otel-api 1.60.1+, and blows up with NoSuchMethodError on the first logged
+             exception. 2.21.0 routes through the guarded incubator interface present in
+             1.55.0. Bump this only alongside Boot's managed opentelemetry version. -->
+        <opentelemetry-instrumentation.version>2.21.0-alpha</opentelemetry-instrumentation.version>
         <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
 
         <!-- Code-quality plugin versions -->
@@ -112,28 +118,12 @@
             <artifactId>jpa-utils</artifactId>
             <version>${jpa-utils.version}</version>
         </dependency>
-        <!-- Liquibase manages the catalog schema (service / team / dependency / service_tag).
-             Substrate-postgresql manages its own session-state tables via bundled SQL scripts
-             gated on substrate.*.auto-create-schema flags, so the two migration stories don't
-             overlap. Hibernate runs in ddl-auto=validate mode to verify the live schema
-             matches our entities. -->
+        <!-- Liquibase owns the entire schema (service / team / dependency / service_tag).
+             Hibernate runs in ddl-auto=validate mode to verify the live schema matches our
+             entities. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-liquibase</artifactId>
-        </dependency>
-        <!-- Substrate Postgres backend: backs Mocapi's session Mailbox / Notifier / Journal /
-             Atom with Postgres so sessions survive across app restarts. Shares the primary
-             Spring DataSource. -->
-        <dependency>
-            <groupId>org.jwcarman.substrate</groupId>
-            <artifactId>substrate-postgresql</artifactId>
-        </dependency>
-        <!-- At-rest encryption for substrate payloads (atom / mailbox / journal).
-             Auto-configures an AesGcmPayloadTransformer when substrate.crypto.shared-key is set.
-             Out-of-band key management is possible via a custom SecretKeyResolver bean. -->
-        <dependency>
-            <groupId>org.jwcarman.substrate</groupId>
-            <artifactId>substrate-crypto</artifactId>
         </dependency>
         <!-- spring-boot-docker-compose: when present on the classpath, `mvn spring-boot:run`
              auto-starts the services declared in compose.yaml (a local Postgres) and injects
@@ -241,13 +231,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.jwcarman.substrate</groupId>
-                <artifactId>substrate-bom</artifactId>
-                <version>${substrate.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>com.callibrity.mocapi</groupId>
                 <artifactId>mocapi-bom</artifactId>
