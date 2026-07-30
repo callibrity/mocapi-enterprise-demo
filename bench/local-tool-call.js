@@ -62,42 +62,39 @@ export function setup() {
   return { token: res.json('access_token') };
 }
 
+const PROTOCOL_VERSION = '2026-07-28';
+
+// Every request carries the protocol envelope. MCP 2026-07-28 is stateless:
+// no initialize handshake, no session id, so an iteration is just the tool
+// calls themselves. clientInfo is optional and omitted.
+const META = {
+  'io.modelcontextprotocol/protocolVersion': PROTOCOL_VERSION,
+  'io.modelcontextprotocol/clientCapabilities': {},
+};
+
 export default function ({ token }) {
   const auth = {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
     'Accept': 'application/json, text/event-stream',
+    'MCP-Protocol-Version': PROTOCOL_VERSION,
   };
 
-  // Open a fresh session per iteration. Realistic: most MCP clients (Claude,
-  // Inspector) reuse a session for many calls; a fresh one per call is the
-  // worst case and exercises substrate session-atom allocation.
-  const initRes = http.post(MCP, JSON.stringify({
-    jsonrpc: '2.0', id: 1, method: 'initialize',
-    params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'k6', version: '0' } },
-  }), { headers: auth });
-  if (initRes.status !== 200) {
-    toolErrors.add(1, { tool: 'initialize' });
-    return;
-  }
-  const session = initRes.headers['Mcp-Session-Id'];
-  const sess = { ...auth, 'Mcp-Session-Id': session };
-
-  http.post(MCP, JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-            { headers: sess });
-
   // Cheap tool: single row lookup.
-  timedCall(sess, 'service-lookup', { name: 'payment-processor' });
+  timedCall(auth, 'service-lookup', { name: 'payment-processor' });
 
   // Expensive tool: transitive dependency traversal + team joins.
-  timedCall(sess, 'blast-radius', { name: 'payment-processor' });
+  timedCall(auth, 'blast-radius', { name: 'payment-processor' });
 }
 
-function timedCall(headers, name, args) {
+function timedCall(auth, name, args) {
+  // Mcp-Method and Mcp-Name must match the body or the transport rejects the
+  // request with -32020 HeaderMismatch before dispatch.
+  const headers = { ...auth, 'Mcp-Method': 'tools/call', 'Mcp-Name': name };
   const t0 = Date.now();
   const r = http.post(MCP, JSON.stringify({
     jsonrpc: '2.0', id: 99, method: 'tools/call',
-    params: { name, arguments: args },
+    params: { name, arguments: args, _meta: META },
   }), { headers, tags: { tool: name } });
   toolLatency.add(Date.now() - t0, { tool: name });
   if (!check(r, { [`${name} 200`]: (r) => r.status === 200 })) {
