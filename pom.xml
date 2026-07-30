@@ -28,7 +28,7 @@
 
     <groupId>com.callibrity.mocapi</groupId>
     <artifactId>mocapi-demo</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
     <name>Mocapi Enterprise Demo</name>
     <description>Enterprise-grade MCP server demo built with Spring Boot and Mocapi</description>
     <inceptionYear>2026</inceptionYear>
@@ -38,7 +38,7 @@
         <mocapi.version>1.0.0</mocapi.version>
         <jpa-utils.version>0.0.12</jpa-utils.version>
         <!-- Must stay aligned with the opentelemetry-core version Spring Boot manages
-             (<opentelemetry.version>, 1.55.0 for Boot 4.0.5). Boot's BOM is imported first
+             (<opentelemetry.version>, 1.55.0 as of Boot 4.0.6). Boot's BOM is imported first
              and wins, so a newer instrumentation release resolves its own core away: 2.26.x
              calls the stable LogRecordBuilder.setException(), which only exists in
              otel-api 1.60.1+, and blows up with NoSuchMethodError on the first logged

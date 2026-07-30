@@ -5,10 +5,15 @@
 
     <!--
       OTel Logback appender: routes log events through the OTel LogRecord pipeline so they land
-      in Application Insights correlated with the current span's traceId/spanId. MDC keys
-      written by mocapi-logging (mcp.session, mcp.protocol.version, mcp.handler.kind,
-      mcp.handler.name, mcp.handler.class, mcp.request.id) are captured as log attributes
-      and become searchable in App Insights.
+      in whatever OTLP backend is configured, correlated with the current span's traceId/spanId.
+      MDC keys written by mocapi-logging (mcp.client.name, mcp.protocol.version,
+      mcp.handler.kind, mcp.handler.name, mcp.handler.class, mcp.request.id) are captured as
+      log-record attributes by captureMdcAttributes below.
+
+      In the local Grafana stack they arrive in Loki as structured metadata with dots replaced
+      by underscores, so a handler's log lines are queryable as:
+
+        {service_name="mocapi-demo"} | mcp_handler_name="submit-feedback"
     -->
     <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
         <captureExperimentalAttributes>true</captureExperimentalAttributes>

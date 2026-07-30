@@ -226,7 +226,8 @@ No OTel Java agent. No bytecode instrumentation. Works under GraalVM native with
 
 - **Traces** — Explore → Tempo → search `{ name = "blast-radius" }`
 - **Metrics** — Explore → Prometheus → try `hikaricp_connections_active` or `http_server_request_duration_seconds_count`
-- **Logs** — Explore → Loki → `{service_name="mocapi-demo"}`
+- **Logs** — Explore → Loki → `{service_name="mocapi-demo"}`, then filter by handler:
+  `{service_name="mocapi-demo"} | mcp_handler_name="submit-feedback"`
 
 A trace, its metrics, and the log lines the handler emitted are all correlated by trace id, so you can pivot between them.
 
@@ -333,14 +334,20 @@ sequenceDiagram
   S->>R: tools/call {name: blast-radius, args}
   R->>M: dispatch to @RequiresScope("catalog:analyze")
   M->>M: scope check — pass
-  M->>DB: SELECT service ...
-  DB-->>M: rows
-  M->>DB: SELECT team WHERE id IN ...
-  DB-->>M: rows
+  M->>DB: SELECT service (the target)
+  DB-->>M: row
+  loop breadth-first, once per visited service
+    M->>DB: SELECT dependency
+    DB-->>M: edges
+    M->>DB: SELECT service + team + tags
+    DB-->>M: rows
+  end
   M-->>R: BlastRadiusDto
   R-->>C: JSON-RPC result
   Note over C,DB: Every step above is a span in the OTLP trace.
 ```
+
+The loop is real, not a simplification: the traversal issues one query per visited node (see [`traverse`](src/main/java/com/callibrity/mocapi/demo/catalog/service/DefaultCatalogService.java)), so a `blast-radius` trace shows roughly a dozen query spans under one handler span. That N+1 is a documented tradeoff, and being able to *count* it in Tempo is the point of the observability pillar.
 
 ---
 
@@ -423,7 +430,14 @@ Wraps every tool / prompt / resource handler invocation in an SLF4J MDC scope th
 | `mcp.handler.class` | Simple name of the (AOP-unwrapped) Java class hosting the handler |
 | `mcp.request.id` | JSON-RPC request id for the in-flight call (absent for notifications) |
 
-**How we use it.** [`logback-spring.xml`](src/main/resources/logback-spring.xml) forwards these MDC keys into the OTel logback appender, which turns them into log-record attributes. The result: every log line the handler emits (including user code) is searchable in the logging backend by client, handler kind, or handler name, correlated with the active trace/span ids.
+**How we use it.** [`logback-spring.xml`](src/main/resources/logback-spring.xml) forwards these MDC keys into the OTel logback appender (`captureMdcAttributes`), which turns them into log-record attributes. Every log line a handler emits — including your own code — is then searchable by client, handler kind, or handler name, correlated with the active trace/span ids.
+
+In Loki they arrive as **structured metadata**, with dots replaced by underscores. That means they filter *after* the stream selector rather than inside it — an easy hour to lose:
+
+```logql
+{service_name="mocapi-demo"} | mcp_handler_name="submit-feedback"
+{service_name="mocapi-demo"} | mcp_handler_kind="tool"
+```
 
 **What it buys you.** "Which call made the LLM hallucinate?" becomes a log query, not a memory archaeology expedition. Without sessions, the correlation key is the trace id rather than a session id — which is the more useful handle anyway, since it spans the whole request including the JDBC work underneath it.
 
