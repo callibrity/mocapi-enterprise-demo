@@ -17,6 +17,16 @@ updates:
       include: "scope"
     reviewers:
       - "jwcarman"
+    ignore:
+      # The OpenTelemetry logback appender must match the opentelemetry-core version Spring Boot
+      # manages, NOT the newest release -- Boot's BOM wins import ordering, so a newer appender
+      # silently resolves its own core away and then calls methods that aren't there. "Latest" is
+      # permanently the wrong answer for this one; see the comment on
+      # opentelemetry-instrumentation.version in pom.xml for the version mapping.
+      #
+      # McpEndpointIntegrationTest#throwingToolReturnsJsonRpcError fails if this is bumped
+      # blindly, so a mistake here is a red build rather than a silent 503 on every error path.
+      - dependency-name: "io.opentelemetry.instrumentation:*"
     groups:
       spring:
         patterns:
