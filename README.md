@@ -90,7 +90,7 @@ curl -sS -X POST http://localhost:8080/mcp \
 
 It reports the protocol versions the server accepts, its capabilities, cache directives for the listing endpoints, and — in `_meta.io.modelcontextprotocol/serverInfo` — the server's own identity, which now travels on every successful response rather than only at handshake time.
 
-Swap `meridian-oncall` in step 2 for `meridian-viewer` or `meridian-owner` and re-run `tools/list`: you'll get 4, 9, or 11 tools depending on the token's scopes. That's scope-gated visibility, covered below.
+Swap `meridian-oncall` in step 2 for `meridian-viewer` or `meridian-owner` and re-run `tools/list`: you'll get 4, 10, or 12 tools depending on the token's scopes. That's scope-gated visibility, covered below.
 
 Traces land in Jaeger at <http://localhost:16686>. Keycloak's admin console (if you want to poke around the realm) is at <http://localhost:8180>, `admin` / `admin`.
 
@@ -158,7 +158,27 @@ That is a better story than the one it replaces. Scaling out no longer means mak
 
 Cross-call application state, when a tool genuinely needs it, uses the spec's explicit-handle pattern: the server hands the client a handle and the client presents it on the next call. State becomes an explicit part of the protocol rather than an invisible server-side lifetime.
 
-### 4. GraalVM native image
+### 4. Interactive tools — elicitation without a session
+
+Statelessness raises an obvious question: if the server remembers nothing between calls, how can a tool *ask the user something* and then continue?
+
+MCP 2026-07-28 answers it with **multi round-trip replay (MRTR)**. `draft-maintenance-comms` is the demo's one interactive tool — it asks when the maintenance window is and whether to include unowned services, then renders a notification list from the blast radius. Each unanswered question unwinds the handler and returns an `input_required` result carrying an opaque, encrypted `requestState` token. The client answers and re-sends the same call; the handler **runs again from the top**, with answered questions returning instantly. Two questions mean three executions of the method.
+
+The state lives in that token, held by the client — so the server still remembers nothing, and any replica can serve any leg of the exchange.
+
+The catch is the part worth internalizing, and it's why [`MaintenanceCommsTools`](src/main/java/com/callibrity/mocapi/demo/catalog/mcp/MaintenanceCommsTools.java) is deliberately read-only up to its last question:
+
+> **Everything before the final `elicit(...)` re-runs on every round trip.** A catalog query there is harmless. A charge, an email, or an INSERT would happen three times.
+
+Verify the whole exchange against a running server — JVM or native — with:
+
+```bash
+scripts/verify-elicitation.sh
+```
+
+It drives all three legs and asserts both answers survive replay. Since `mocapi.mrtr.secret` defaults to an ephemeral per-process key, every leg must reach the same instance; set it explicitly (see the config table) before running more than one replica.
+
+### 5. GraalVM native image
 
 Full native build in ~1.5 min (`mvn -Pnative native:compile` with GraalVM 25). Resulting binary:
 
@@ -356,6 +376,7 @@ src/main/java/com/callibrity/mocapi/demo/
 │   ├── repository/                     # Spring Data JPA repositories
 │   ├── service/                        # transport-agnostic catalog service
 │   ├── mcp/CatalogTools.java           # thin @McpTool + @RequiresScope adapter
+│   ├── mcp/MaintenanceCommsTools.java  # the interactive tool (elicitation / MRTR replay)
 │   ├── dto/                            # MCP-shaped return types
 │   └── seed/                           # startup seed data (36 services, 8 teams, 86 deps)
 ├── feedback/                           # submit-feedback + suggest-tool
@@ -363,6 +384,10 @@ src/main/java/com/callibrity/mocapi/demo/
 └── infra/
     └── OpenTelemetryAppenderInitializer.java   # wires logback appender to OTel SDK
 ```
+
+Plus `scripts/verify-elicitation.sh` — drives a full three-leg elicitation round
+trip against a running server (JVM or native binary) and asserts the answers
+survive replay.
 
 ---
 
