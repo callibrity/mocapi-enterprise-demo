@@ -33,7 +33,7 @@ This README is long because the demo is thorough. You almost certainly don't nee
 | Run the native image | [GraalVM native image](#5-graalvm-native-image) | 1 command |
 | Fix something that's broken | [Troubleshooting](#troubleshooting) | — |
 
-The only prerequisites are **Java 25**, **Maven**, and **Docker**. Everything else — Postgres, Keycloak, Jaeger, realm import, seed data — is started for you.
+The only prerequisites are **Java 25**, **Maven**, and **Docker**. Everything else — Postgres, Keycloak, Grafana, realm import, seed data — is started for you.
 
 ---
 
@@ -59,7 +59,7 @@ That's the payoff. The rest of this README is about the enterprise wrapper that 
 
 On a fresh clone, run each block in order:
 
-**1. Run the app.** `spring-boot-docker-compose` starts Postgres, Keycloak (with realm pre-imported), and Jaeger from `compose.yaml` on boot and stops them on shutdown — no separate compose step needed.
+**1. Run the app.** `spring-boot-docker-compose` starts Postgres, Keycloak (with realm pre-imported), and the Grafana OTel stack from `compose.yaml` on boot and stops them on shutdown — no separate compose step needed.
 
 ```bash
 mvn spring-boot:run
@@ -107,7 +107,7 @@ It reports the protocol versions the server accepts, its capabilities, cache dir
 
 Swap `meridian-oncall` in step 2 for `meridian-viewer` or `meridian-owner` and re-run `tools/list`: you'll get 4, 10, or 12 tools depending on the token's scopes. That's scope-gated visibility, covered below.
 
-Traces land in Jaeger at <http://localhost:16686>. Keycloak's admin console (if you want to poke around the realm) is at <http://localhost:8180>, `admin` / `admin`.
+Traces, metrics, and logs all land in Grafana at <http://localhost:3000> (`admin` / `admin`) — Tempo for traces, Prometheus for metrics, Loki for logs, all pre-wired as datasources. Keycloak's admin console (if you want to poke around the realm) is at <http://localhost:8180>, `admin` / `admin`.
 
 ---
 
@@ -212,7 +212,7 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://your-tenant.auth0.
 
 ### 2. Observability — three pillars via OTLP
 
-Traces, metrics, and logs all leave the app via OTLP. Locally, Jaeger's all-in-one (with `COLLECTOR_OTLP_ENABLED=true`) catches traces on `:4318`. In production, point at the OTel collector of your choice.
+Traces, metrics, and logs all leave the app via OTLP. Locally, [`grafana/otel-lgtm`](https://github.com/grafana/docker-otel-lgtm) catches all three on `:4318` — it bundles an OTel Collector with Tempo, Prometheus, Loki, and Grafana in one container. In production, point at the OTel collector of your choice (this app's ACA deployment runs one as a pod sidecar).
 
 - **Traces**: Micrometer Observation → OTel bridge (via `spring-boot-starter-opentelemetry`, transitive through `mocapi-otel`). A single tool call produces a complete flame graph: `http post /mcp` → Spring Security filter chain → `tools/call` (RiPCurl dispatch) → tool span (e.g. `blast-radius`) → JDBC `connection`/`query`/`result-set` spans. N+1 query patterns are visible in the trace, not inferred from logs.
 - **Metrics**: Micrometer OTLP meter registry pushes on a 60s cadence. JVM, HTTP, JDBC, Hikari, Mocapi handler metrics all flow.
@@ -221,6 +221,16 @@ Traces, metrics, and logs all leave the app via OTLP. Locally, Jaeger's all-in-o
   The appender version is pinned deliberately in [`pom.xml`](pom.xml) and must track the OpenTelemetry core version Spring Boot manages — Boot's BOM wins import ordering, so a newer appender resolves against an older API and dies with `NoSuchMethodError` the first time it tries to log an exception. The pom comment spells out the constraint.
 
 No OTel Java agent. No bytecode instrumentation. Works under GraalVM native without special handling.
+
+**Seeing it.** Grafana is at <http://localhost:3000> (`admin` / `admin`) with all three datasources pre-wired. After running the app and making a few tool calls:
+
+- **Traces** — Explore → Tempo → search `{ name = "blast-radius" }`
+- **Metrics** — Explore → Prometheus → try `hikaricp_connections_active` or `http_server_request_duration_seconds_count`
+- **Logs** — Explore → Loki → `{service_name="mocapi-demo"}`
+
+A trace, its metrics, and the log lines the handler emitted are all correlated by trace id, so you can pivot between them.
+
+> **Why not Jaeger?** The demo emitted all three signals from the start, but Jaeger only ingests traces — metrics and logs were quietly 404ing every 60 seconds, complete with a stack trace in the app log. The `grafana/otel-lgtm` image accepts all three, so the "three pillars" claim is now something you can verify rather than take on faith. Grafana ships that image for demos and local development, **not** for production.
 
 ### 3. Persistence — Postgres for the catalog, and nothing else
 
@@ -297,7 +307,7 @@ flowchart TD
   llm[Claude / MCP client] -->|Bearer JWT| app[mocapi-demo]
   app -->|JDBC| pg[(Postgres)]
   app -->|OIDC discovery + JWKS| kc[Keycloak]
-  app -->|OTLP| otel[Jaeger / OTel collector]
+  app -->|OTLP| otel[OTel collector / Grafana LGTM]
   llm -.->|client_credentials| kc
 ```
 
@@ -414,7 +424,7 @@ Wraps every tool / prompt / resource handler invocation in an SLF4J MDC scope th
 
 Bundles `mocapi-o11y` (which wraps every handler invocation in a Micrometer `Observation`) with Spring Boot 4's `spring-boot-starter-opentelemetry` (which in Spring Boot 4 is the dep that activates `MicrometerTracingAutoConfiguration` and registers the `DefaultTracingObservationHandler` that bridges Observations to OTel spans). The net effect: every tool call is a named span (e.g. `blast-radius`) with its own attributes, nested under the HTTP request span.
 
-Combined with `datasource-micrometer-spring-boot` + `datasource-micrometer-opentelemetry` (both on our classpath — see [`pom.xml`](pom.xml)), every JDBC statement also becomes an OTel span with `db.query.text`, `db.system.name`, `db.operation.name`, and `db.response.returned_rows` attributes. Which means N+1 patterns are visible in Jaeger as a fan of query spans under a single handler span.
+Combined with `datasource-micrometer-spring-boot` + `datasource-micrometer-opentelemetry` (both on our classpath — see [`pom.xml`](pom.xml)), every JDBC statement also becomes an OTel span with `db.query.text`, `db.system.name`, `db.operation.name`, and `db.response.returned_rows` attributes. Which means N+1 patterns are visible in Tempo as a fan of query spans under a single handler span.
 
 **What it buys you.** No OTel Java agent, no bytecode instrumentation, no custom `@Traced` annotations. One starter, one observability pipeline, works under GraalVM native.
 

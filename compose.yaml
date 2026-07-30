@@ -28,13 +28,21 @@ services:
     labels:
       org.springframework.boot.service-connection: postgres
 
-  jaeger:
-    image: jaegertracing/all-in-one:1.76.0
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
+  # One container holding an OpenTelemetry Collector plus Tempo (traces),
+  # Prometheus (metrics), Loki (logs), and Grafana to view all three. It exists
+  # because the demo emits all three OTLP signals and a traces-only backend
+  # silently 404s two of them -- metrics every 60s, with a stack trace.
+  #
+  # Grafana ships this image for demos and local development, explicitly not for
+  # production. Real deployments send OTLP to a collector (this app's ACA
+  # deployment has one as a pod sidecar) which fans out to whatever backends the
+  # org actually runs.
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
     ports:
-      - "16686:16686"   # UI
-      - "4318:4318"     # OTLP HTTP (app exports here)
+      - "3000:3000"     # Grafana UI
+      - "4318:4318"     # OTLP HTTP  (traces + metrics + logs all land here)
+      - "4317:4317"     # OTLP gRPC
 
   # Keycloak acts as the local OIDC provider. Realm + M2M client are imported
   # from keycloak/mocapi-demo-realm.json on first boot, so a fresh clone has a

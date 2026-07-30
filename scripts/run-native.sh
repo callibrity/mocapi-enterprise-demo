@@ -72,7 +72,7 @@ else
 fi
 
 # --- infrastructure -----------------------------------------------------------
-info "Starting Postgres / Keycloak / Jaeger"
+info "Starting Postgres / Keycloak / Grafana OTel stack"
 docker compose up -d
 
 info "Waiting for Postgres"
@@ -106,5 +106,7 @@ exec docker run --rm --name "$CONTAINER" --network "$NETWORK" -p 8080:8080 \
   -e SPRING_DATASOURCE_USERNAME=mocapi \
   -e SPRING_DATASOURCE_PASSWORD=mocapi-dev \
   -e SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI="http://keycloak:8180/realms/mocapi-demo/protocol/openid-connect/certs" \
-  -e MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT="http://jaeger:4318/v1/traces" \
+  -e MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT="http://otel-lgtm:4318/v1/traces" \
+  -e MANAGEMENT_OTLP_METRICS_EXPORT_URL="http://otel-lgtm:4318/v1/metrics" \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT="http://otel-lgtm:4318" \
   "$IMAGE"
