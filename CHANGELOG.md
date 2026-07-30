@@ -26,6 +26,13 @@ All notable changes to this project are documented in this file. The format is b
   protocol metadata into `params._meta`. The demo's own Java needed no changes — it uses
   only `@McpTool`, `@RequiresScope`, and two filter-chain customizers, all unchanged.
 
+  **No shipping MCP client can connect to this build.** The MCP TypeScript SDK (1.30.0)
+  and MCP Inspector (2.0.0) top out at `2025-11-25`, and there is no negotiation path
+  because `initialize` is the thing that was removed — a client leading with it gets
+  `-32020 HeaderMismatch`. Drive the server over HTTP until clients ship `2026-07-28`
+  support; everything else in the demo is verifiable today. Use Mocapi 0.x if you need a
+  server an LLM client can talk to now.
+
 - **`MOCAPI_SESSION_ENCRYPTION_MASTER_KEY` and `SUBSTRATE_CRYPTO_SHARED_KEY` are gone.**
   Neither property exists any more. Deployments setting them should remove them; set
   `MOCAPI_MRTR_SECRET` instead if you add interactive tools and run more than one replica.

@@ -9,7 +9,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=callibrity_mocapi-enterprise-demo&metric=coverage)](https://sonarcloud.io/summary/new_code?id=callibrity_mocapi-enterprise-demo)
 
-An **enterprise-grade MCP server** built on Spring Boot 4, [Mocapi](https://github.com/callibrity/mocapi), and GraalVM native. Exposes a fictitious service catalog ("Meridian") over the Model Context Protocol so an LLM can answer the kinds of questions every enterprise engineering org struggles with:
+An **enterprise-grade MCP server** built on Spring Boot 4, [Mocapi](https://github.com/callibrity/mocapi), and GraalVM native. Exposes a fictitious service catalog ("Meridian") over the Model Context Protocol, with tools designed so an LLM can answer the kinds of questions every enterprise engineering org struggles with:
 
 - **Who owns this service?** What happens if it breaks?
 - **Which services touch PII / PCI?** Are any of them orphaned?
@@ -32,12 +32,35 @@ This README is long because the demo is thorough. You almost certainly don't nee
 | Know which Mocapi module does what | [Feature tour](#feature-tour--mocapi) | skim |
 | Run the native image | [GraalVM native image](#5-graalvm-native-image) | 1 command |
 | Fix something that's broken | [Troubleshooting](#troubleshooting) | — |
+| Connect an LLM client | [Client compatibility](#client-compatibility--read-this-before-you-plug-in-an-llm) | read first |
 
 The only prerequisites are **Java 25**, **Maven**, and **Docker**. Everything else — Postgres, Keycloak, Grafana, realm import, seed data — is started for you.
+
+### Client compatibility — read this before you plug in an LLM
+
+**No shipping MCP client can connect to this server today.** Mocapi 1.0 implements MCP revision **`2026-07-28`** exclusively, and the ecosystem hasn't caught up:
+
+| | protocol |
+|---|---|
+| MCP TypeScript SDK 1.30.0 (`LATEST_PROTOCOL_VERSION`) | `2025-11-25` |
+| MCP Inspector 2.0.0 (built on that SDK) | `2025-11-25` |
+| **This server** | **`2026-07-28` only** |
+
+There is no graceful downgrade, because the thing that used to negotiate is the thing that was removed. A client leading with `initialize` gets:
+
+```json
+{"error":{"code":-32020,"message":"HeaderMismatch: missing required header MCP-Protocol-Version"}}
+```
+
+So until clients ship `2026-07-28` support, **you drive this server with HTTP** — the [Quickstart](#quickstart) below, [`scripts/verify-elicitation.sh`](scripts/verify-elicitation.sh), or your own client. Everything else in this repo — OAuth2, scope-gated visibility, observability, native images, elicitation — works and is verifiable today. It's the LLM-on-the-other-end part that's waiting on the ecosystem.
+
+This is the cost of a clean break, and it's a deliberate one: see [ADR-0019](https://github.com/callibrity/mocapi) in Mocapi. If you need a server an LLM client can talk to *right now*, use Mocapi 0.x, which speaks `2025-11-25`.
 
 ---
 
 ## Seeing it in action
+
+> **These transcripts are from the 0.x build, on MCP `2025-11-25`.** They are real, not mockups — but you cannot reproduce them against the current build until a client supports `2026-07-28` (see above). They're kept here because they show what the tool design is *for*: the tools, their descriptions, and the shape of their output are unchanged.
 
 One natural-language question, and Claude works the catalog the way a human would — only without the tab-hopping:
 
