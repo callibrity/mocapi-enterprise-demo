@@ -45,7 +45,7 @@
              exception. 2.21.0 routes through the guarded incubator interface present in
              1.55.0. Bump this only alongside Boot's managed opentelemetry version. -->
         <opentelemetry-instrumentation.version>2.21.0-alpha</opentelemetry-instrumentation.version>
-        <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
+        <datasource-micrometer.version>2.3.0</datasource-micrometer.version>
 
         <!-- Code-quality plugin versions -->
         <license-maven-plugin.version>5.0.0</license-maven-plugin.version>
